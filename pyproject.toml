@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "kanban-tui"
+version = "0.1.0"
+description = "A modern terminal Kanban board with markdown-backed tasks, built with Textual."
+authors = ["Javier <javier4657@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "kanban_tui", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+textual = "^8.2.8"
+pyyaml = "^6.0"
+
+[tool.poetry.group.dev.dependencies]
+pyinstaller = "^6.10.0"
+textual-dev = "^1.6.1"
+
+[tool.poetry.scripts]
+kanban-tui = "kanban_tui.app:run"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
