@@ -21,10 +21,28 @@ poetry build
 DIST_DIR="dist"
 mkdir -p "$DIST_DIR"
 
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+case "$OS" in
+    linux) OS="linux" ;;
+    darwin) OS="darwin" ;;
+    msys*|mingw*|cygwin*) OS="windows" ;;
+esac
+
+ARCH="$(uname -m)"
+case "$ARCH" in
+    x86_64|amd64) ARCH="x86_64" ;;
+    aarch64|arm64) ARCH="arm64" ;;
+esac
+
+BINARY_NAME="kanban-tui-${OS}-${ARCH}"
+if [ "$OS" = "windows" ]; then
+    BINARY_NAME="${BINARY_NAME}.exe"
+fi
+
 echo "==> Building standalone dev binary with PyInstaller"
 if poetry run python -c "import PyInstaller" >/dev/null 2>&1; then
     poetry run pyinstaller \
-        --name kanban-tui-dev \
+        --name "$BINARY_NAME" \
         --onefile \
         --noconfirm \
         --clean \
@@ -35,7 +53,7 @@ if poetry run python -c "import PyInstaller" >/dev/null 2>&1; then
         --specpath build \
         scripts/run_kanban_tui.py
 
-    echo "==> Standalone binary created at $DIST_DIR/kanban-tui-dev"
+    echo "==> Standalone binary created at $DIST_DIR/$BINARY_NAME"
 else
     echo "PyInstaller not available, skipping standalone binary build."
 fi
@@ -48,4 +66,4 @@ echo
 echo "Install the wheel elsewhere with:"
 echo "  pip install $DIST_DIR/kanban_tui-*.whl"
 echo "Or copy and run the standalone dev binary directly:"
-echo "  $DIST_DIR/kanban-tui-dev"
+echo "  $DIST_DIR/$BINARY_NAME"

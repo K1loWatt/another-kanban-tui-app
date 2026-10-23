@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kanban-tui"
-version = "0.1.0"
+version = "1.0.0"
 description = "A modern terminal Kanban board with markdown-backed tasks, built with Textual."
 authors = ["Javier <javier4657@gmail.com>"]
 readme = "README.md"

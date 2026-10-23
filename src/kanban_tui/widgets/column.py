@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from datetime import date
 
-from textual.app import ComposeResult
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Vertical
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from ..models import Status, Task, TaskType
+from ..models import ServiceClass, Status, Task
+from ..settings import BoardSettings
 from .task_card import TaskCard
 
 STATUS_TITLES = {
@@ -18,49 +18,71 @@ STATUS_TITLES = {
 
 
 class Column(Vertical):
-    """Una columna del tablero (Pendientes / En progreso / Hecho)."""
+    """Una columna del tablero (Pendientes / En progreso / Hecho) dentro de un carril.
+
+    Column titles only appear once, in the dashboard's pinned header row
+    (see `#board-header` in app.py) — this widget renders just the task rows.
+    """
 
     is_active: reactive[bool] = reactive(False)
 
-    def __init__(self, status: Status, **kwargs) -> None:
+    def __init__(self, status: Status, lane_key: str, wip_limit: int | None = None, **kwargs) -> None:
         super().__init__(**kwargs)
         self.status = status
+        self.lane_key = lane_key
+        self.wip_limit = wip_limit
         self.tasks: list[Task] = []
+        self.id_to_task: dict[str, Task] = {}
+        self.settings = BoardSettings()
         self.selected_index = 0
         self.add_class(f"column-{status.value}")
 
-    def compose(self) -> ComposeResult:
-        yield Static(self._header_text(), classes="column-header", id=f"header-{self.status.value}")
-        yield VerticalScroll(id=f"body-{self.status.value}", classes="column-body")
+    def _blocking_task(self, task: Task) -> Task | None:
+        if not task.blocked_by:
+            return None
+        blocker = self.id_to_task.get(task.blocked_by)
+        if blocker is None or blocker.status == Status.DONE:
+            return None
+        return blocker
 
-    def _header_text(self) -> str:
-        return f"{STATUS_TITLES[self.status]}  ({len(self.tasks)})"
-
-    @staticmethod
-    def _sort_key(task: Task):
+    def _sort_key(self, task: Task):
+        fixed_date_urgent = task.service_class == ServiceClass.FIXED_DATE and (
+            task.is_approaching(self.settings.approaching_days) or task.is_overdue
+        )
         return (
-            0 if task.type == TaskType.URGENT else 1,
+            0 if fixed_date_urgent else 1,
             task.due_date or date.max,
             task.priority,
             task.title.lower(),
         )
 
-    def set_tasks(self, tasks: list[Task]) -> None:
+    def set_tasks(
+        self,
+        tasks: list[Task],
+        id_to_task: dict[str, Task] | None = None,
+        settings: BoardSettings | None = None,
+    ) -> None:
+        self.id_to_task = id_to_task or {}
+        self.settings = settings or BoardSettings()
         self.tasks = sorted(tasks, key=self._sort_key)
-        body = self.query_one(VerticalScroll)
-        body.remove_children()
+        self.remove_children()
         if self.tasks:
             for task in self.tasks:
-                body.mount(TaskCard(task))
+                self.mount(
+                    TaskCard(
+                        task,
+                        blocking_task=self._blocking_task(task),
+                        settings=self.settings,
+                    )
+                )
         else:
-            body.mount(Static("  Sin tareas", classes="empty-hint"))
+            self.mount(Static("  Sin tareas", classes="empty-hint"))
 
         if self.tasks:
             self.selected_index = max(0, min(self.selected_index, len(self.tasks) - 1))
         else:
             self.selected_index = 0
 
-        self.query_one(f"#header-{self.status.value}", Static).update(self._header_text())
         self.refresh_selection()
 
     def move_selection(self, delta: int) -> None:
@@ -77,7 +99,6 @@ class Column(Vertical):
             cards[self.selected_index].scroll_visible()
 
     def watch_is_active(self, value: bool) -> None:
-        self.set_class(value, "active-column")
         self.refresh_selection()
 
     def get_selected_task(self) -> Task | None:
