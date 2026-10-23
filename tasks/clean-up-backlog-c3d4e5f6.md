@@ -1,7 +1,7 @@
 ---
 id: c3d4e5f6
 title: Groom the backlog
-status: backlog
+status: doing
 type: normal
 priority: 5
 labels:

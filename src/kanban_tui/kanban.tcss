@@ -1,14 +1,35 @@
+* {
+    scrollbar-background: #1c140a;
+    scrollbar-background-hover: #2e2112;
+    scrollbar-background-active: #2e2112;
+    scrollbar-color: #5a4228;
+    scrollbar-color-hover: #c9a06a;
+    scrollbar-color-active: #ff9d3d;
+    scrollbar-corner-color: #1c140a;
+}
+
 Screen {
-    background: #0b0d13;
+    background: #130e09;
 }
 
 Header {
-    background: #11141c;
-    color: #e2e8f0;
+    background: #1c140a;
+    color: #e8d2b0;
 }
 
 Footer {
-    background: #11141c;
+    background: #1c140a;
+}
+
+#board-header {
+    height: 1;
+    padding: 0 3;
+}
+
+.board-col-header {
+    width: 1fr;
+    text-style: bold;
+    color: #a8835a;
 }
 
 #board {
@@ -16,102 +37,110 @@ Footer {
     padding: 1 2;
 }
 
+Lane {
+    height: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+    border-top: solid #2e2112;
+}
+
+Lane.active-lane {
+    border-top: solid #ff9d3d;
+}
+
+Lane.urgency-lane {
+    border-top: solid #7a2a1e;
+}
+
+Lane.urgency-lane.active-lane {
+    border-top: solid #ff5f56;
+}
+
+.lane-header {
+    height: 1;
+    margin-bottom: 0;
+    align: left middle;
+}
+
+.lane-title {
+    width: 1fr;
+    color: #e8c088;
+}
+
+.lane-description {
+    height: 1;
+    color: #8a6a45;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.lane-body {
+    height: auto;
+}
+
 Column {
     width: 1fr;
-    height: 1fr;
-    margin: 0 1;
-    background: #11141c;
-    border: round #262b3a;
-}
-
-Column.active-column {
-    border: round #60a5fa;
-}
-
-.column-header {
-    height: 1;
+    height: auto;
     padding: 0 1;
-    background: #161a24;
-    color: #94a3b8;
-    text-style: bold;
-    text-align: center;
-}
-
-Column.column-backlog .column-header {
-    color: #93c5fd;
-}
-
-Column.column-doing .column-header {
-    color: #fbbf24;
-}
-
-Column.column-done .column-header {
-    color: #34d399;
-}
-
-.column-body {
-    padding: 1;
-    scrollbar-size: 1 1;
 }
 
 .empty-hint {
-    color: #475569;
-    padding: 1;
-    text-align: center;
+    color: #5a4228;
+    height: 1;
+    padding: 0 1;
 }
 
 TaskCard {
     width: 1fr;
-    height: auto;
-    min-height: 3;
-    margin-bottom: 0;
+    height: 3;
     padding: 0 1;
-    background: #171b26;
-    border: round #2b3141;
-    color: #cbd5e1;
+    background: transparent;
+    color: #d8c3a0;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
-/* Urgente: parpadea en rojo */
+/* Expedito: parpadea en rojo */
 TaskCard.alert-urgent {
-    border: round #f87171;
+    color: #ffb3a0;
+    border-left: thick #ff5f56;
 }
 
 TaskCard.alert-urgent.blink-active {
-    background: #7f1d1d;
-    color: #fff1f2;
-    border: round #fca5a5;
+    background: #3a1410;
+    color: #ffd9cf;
 }
 
-/* Fecha límite próxima: parpadea en amarillo */
+/* Fecha límite próxima: parpadea en ámbar */
 TaskCard.alert-approaching {
-    border: round #fbbf24;
+    border-left: thick #ffcc66;
 }
 
 TaskCard.alert-approaching.blink-active {
-    background: #78350f;
-    color: #fffbeb;
-    border: round #fde047;
+    background: #3a2a0a;
+    color: #ffe9bd;
 }
 
-/* Vencida: borde rojo fijo (sin parpadeo) */
+/* Vencida: marca roja fija (sin parpadeo) */
 TaskCard.alert-overdue {
-    border: round #f87171;
-    color: #fecaca;
+    border-left: thick #ff5f56;
+    color: #ffbdb0;
 }
 
-/* Prioridad baja: borde verde fijo */
+/* Prioridad baja: marca verde fija */
 TaskCard.alert-low {
-    border: round #34d399;
-    color: #d1fae5;
+    border-left: thick #6bbf6b;
 }
 
 TaskCard.selected {
-    border: double #60a5fa;
-    background: #1e293b;
+    background: #3a2512;
+    color: #ffd9a8;
+    text-style: bold;
 }
 
 TaskCard.selected.blink-active {
-    border: double #fde047;
+    background: #4a3012;
+    color: #ffe9c0;
 }
 
 TaskFormScreen, ConfirmScreen {
@@ -119,13 +148,16 @@ TaskFormScreen, ConfirmScreen {
 }
 
 #form-dialog, #confirm-dialog {
-    width: 76;
-    max-width: 90%;
     height: auto;
-    max-height: 90%;
-    background: #11141c;
-    border: round #60a5fa;
+    max-height: 96%;
+    background: #1c140a;
+    border: round #ff9d3d;
     padding: 1 2;
+}
+
+#form-dialog {
+    width: 110;
+    max-width: 96%;
 }
 
 #confirm-dialog {
@@ -134,25 +166,30 @@ TaskFormScreen, ConfirmScreen {
 
 #form-title {
     text-style: bold;
-    color: #e2e8f0;
+    color: #e8d2b0;
     padding-bottom: 1;
 }
 
 #form-body {
     height: auto;
-    max-height: 24;
 }
 
 #f-description {
-    height: 6;
-    border: round #2b3141;
+    height: 4;
+    border: round #2e2112;
+    margin-bottom: 1;
+}
+
+#f-acceptance-criteria {
+    height: 3;
+    border: round #2e2112;
     margin-bottom: 1;
 }
 
 #form-body Label {
     height: 1;
     margin: 0;
-    color: #94a3b8;
+    color: #a8835a;
 }
 
 #form-body Input {
@@ -185,11 +222,154 @@ TaskFormScreen, ConfirmScreen {
 }
 
 #form-error {
-    color: #f87171;
+    color: #ff5f56;
     height: auto;
     padding-top: 1;
 }
 
 #confirm-message {
     padding-bottom: 1;
+}
+
+ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen {
+    align: center middle;
+}
+
+#objectives-dialog, #metrics-dialog, #summary-dialog {
+    width: 90;
+    max-width: 92%;
+    height: auto;
+    max-height: 90%;
+    background: #1c140a;
+    border: round #ff9d3d;
+    padding: 1 2;
+}
+
+#objectives-dialog {
+    width: 110;
+    max-width: 96%;
+    max-height: 96%;
+}
+
+#objectives-title, #metrics-title, #summary-title {
+    text-style: bold;
+    color: #e8d2b0;
+    padding-bottom: 1;
+}
+
+#summary-stats {
+    color: #a8835a;
+    padding-bottom: 1;
+}
+
+#summary-body {
+    height: auto;
+    max-height: 26;
+}
+
+.summary-task {
+    color: #d8c3a0;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#objectives-hint {
+    color: #a8835a;
+    padding-bottom: 1;
+}
+
+#objectives-body, #metrics-body {
+    height: auto;
+    max-height: 26;
+}
+
+#objectives-dialog #objectives-body {
+    max-height: 34;
+}
+
+#objectives-dialog .form-row {
+    height: auto;
+}
+
+#obj-new-name {
+    width: 1fr;
+    margin-right: 1;
+}
+
+#obj-new-priority {
+    width: 16;
+    margin-right: 1;
+}
+
+#obj-new-btn {
+    width: auto;
+    min-width: 10;
+}
+
+#obj-new-description {
+    margin-bottom: 1;
+}
+
+.objective-row {
+    height: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+.objective-row.selected-row {
+    background: #3a2512;
+}
+
+.objective-row-header {
+    height: 1;
+    align: left middle;
+}
+
+.objective-row-name {
+    width: 1fr;
+    color: #d8c3a0;
+}
+
+.objective-row-description {
+    height: 1;
+    color: #8a6a45;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.objective-row-btn {
+    width: auto;
+    min-width: 10;
+    height: 1;
+    padding: 0 1;
+    border: none;
+    background: #3a2512;
+    color: #ffb454;
+}
+
+#objectives-error {
+    color: #ff5f56;
+    height: auto;
+    padding-top: 1;
+}
+
+#objectives-actions, #metrics-actions, #summary-actions {
+    height: auto;
+    padding-top: 1;
+    align: right middle;
+}
+
+.metrics-section {
+    text-style: bold;
+    color: #c9a06a;
+    padding-top: 1;
+}
+
+.metrics-row {
+    color: #d8c3a0;
+    height: 1;
+}
+
+.metrics-spacer {
+    height: 1;
 }

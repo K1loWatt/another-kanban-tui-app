@@ -5,12 +5,13 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from ..colors import label_color, priority_color
-from ..models import Status, Task, TaskType
+from ..models import ServiceClass, Status, Task, oneline
 
-TYPE_ICON = {
-    TaskType.URGENT: "\U0001f525",
-    TaskType.DEADLINE: "⏰",
-    TaskType.NORMAL: "\U0001f4cb",
+SERVICE_CLASS_ICON = {
+    ServiceClass.EXPEDITE: "\U0001f525",
+    ServiceClass.FIXED_DATE: "⏰",
+    ServiceClass.STANDARD: "\U0001f4cb",
+    ServiceClass.INTANGIBLE: "\U0001f4a1",
 }
 
 LOW_PRIORITY_THRESHOLD = 4
@@ -33,7 +34,7 @@ class TaskCard(Static):
     def _compute_alert(self) -> str:
         task = self.task_data
         if task.status != Status.DONE:
-            if task.type == TaskType.URGENT:
+            if task.service_class == ServiceClass.EXPEDITE:
                 return "urgent"
             if task.is_overdue:
                 return "overdue"
@@ -54,23 +55,34 @@ class TaskCard(Static):
         self.set_class(value and self.alert in ("urgent", "approaching"), "blink-active")
 
     def _build_markup(self) -> str:
+        """One compact line per task, like an email client's inbox row."""
         task = self.task_data
-        icon = TYPE_ICON[task.type]
-        lines = [f"{icon} [bold]{escape(task.title)}[/bold]"]
-
+        icon = SERVICE_CLASS_ICON[task.service_class]
         color = priority_color(task.priority)
-        meta = f"[{color}]●[/] P{task.priority}"
+
+        bits = [icon, f"[bold]{escape(task.title)}[/bold]", f"[{color}]P{task.priority}[/]"]
+
         if task.due_date:
             due_style = "bold red" if task.is_overdue else "dim"
             etiqueta = "vencida" if task.is_overdue else "vence"
-            meta += f"   [{due_style}]{etiqueta} {task.due_date.isoformat()}[/{due_style}]"
-        lines.append(meta)
+            bits.append(f"[{due_style}]{etiqueta} {task.due_date.isoformat()}[/{due_style}]")
+
+        if task.is_stale_intangible:
+            bits.append("[bold #d9b36c]⚠ revisar[/]")
 
         if task.labels:
-            chips = "  ".join(f"[{label_color(l)}]▐[/] {escape(l)}" for l in task.labels)
-            lines.append(chips)
+            bits.append("  ".join(f"[{label_color(l)}]{escape(l)}[/]" for l in task.labels))
 
-        return "\n".join(lines)
+        title_line = "  ".join(bits)
+
+        description = oneline(task.description) or "(sin resumen)"
+        acceptance = oneline(task.acceptance_criteria) or "(sin criterio de aceptación)"
+
+        return (
+            f"{title_line}\n"
+            f" [dim]|_[/dim] [dim]{escape(description)}[/dim]\n"
+            f" [dim]|_[/dim] [dim]{escape(acceptance)}[/dim]"
+        )
 
     def on_click(self) -> None:
         self.app.select_card(self.task_data)

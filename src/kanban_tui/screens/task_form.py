@@ -8,7 +8,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
-from ..models import PRIORITY_DEFAULT, Status, Task, TaskType
+from ..models import PRIORITY_DEFAULT, ServiceClass, Status, Task
+from ..objectives import EXPEDITE_DOING_LIMIT, LANE_WIP_LIMIT
 
 STATUS_LABELS = {
     Status.BACKLOG: "Pendiente",
@@ -16,10 +17,11 @@ STATUS_LABELS = {
     Status.DONE: "Hecho",
 }
 
-TYPE_LABELS = {
-    TaskType.NORMAL: "Normal",
-    TaskType.DEADLINE: "Con fecha límite",
-    TaskType.URGENT: "Urgente",
+SERVICE_CLASS_LABELS = {
+    ServiceClass.STANDARD: "Estándar",
+    ServiceClass.FIXED_DATE: "Fecha fija",
+    ServiceClass.EXPEDITE: "Expedito (urgente)",
+    ServiceClass.INTANGIBLE: "Intangible",
 }
 
 PRIORITY_LABELS = {
@@ -35,10 +37,20 @@ PRIORITY_LABELS = {
 class TaskFormScreen(ModalScreen[Task | None]):
     """Formulario para crear / editar una tarea."""
 
-    def __init__(self, task: Task | None = None, default_status: Status = Status.BACKLOG) -> None:
+    def __init__(
+        self,
+        task: Task | None = None,
+        default_status: Status = Status.BACKLOG,
+        objective_names: list[str] | None = None,
+        default_objective: str = "",
+        other_tasks: list[Task] | None = None,
+    ) -> None:
         super().__init__()
         self.editing_task = task
         self.default_status = default_status
+        self.objective_names = objective_names or []
+        self.default_objective = default_objective
+        self.other_tasks = other_tasks or []
 
     def compose(self) -> ComposeResult:
         task = self.editing_task
@@ -52,6 +64,9 @@ class TaskFormScreen(ModalScreen[Task | None]):
                 yield Label("Descripción")
                 yield TextArea(task.description if task else "", id="f-description")
 
+                yield Label("Criterio de aceptación *")
+                yield TextArea(task.acceptance_criteria if task else "", id="f-acceptance-criteria")
+
                 with Horizontal(classes="form-row"):
                     with Vertical(classes="form-col"):
                         yield Label("Estado")
@@ -62,11 +77,11 @@ class TaskFormScreen(ModalScreen[Task | None]):
                             allow_blank=False,
                         )
                     with Vertical(classes="form-col"):
-                        yield Label("Tipo")
+                        yield Label("Clase de servicio")
                         yield Select(
-                            [(TYPE_LABELS[t], t) for t in TaskType],
-                            value=task.type if task else TaskType.NORMAL,
-                            id="f-type",
+                            [(SERVICE_CLASS_LABELS[c], c) for c in ServiceClass],
+                            value=task.service_class if task else ServiceClass.STANDARD,
+                            id="f-service-class",
                             allow_blank=False,
                         )
                     with Vertical(classes="form-col"):
@@ -80,19 +95,28 @@ class TaskFormScreen(ModalScreen[Task | None]):
 
                 with Horizontal(classes="form-row"):
                     with Vertical(classes="form-col"):
-                        yield Label("Fecha límite (AAAA-MM-DD) *")
+                        yield Label("Objetivo (no aplica a Expedito)")
+                        current_objective = task.objective if task else self.default_objective
+                        yield Select(
+                            [(name, name) for name in self.objective_names],
+                            value=current_objective if current_objective in self.objective_names else Select.NULL,
+                            id="f-objective",
+                            allow_blank=True,
+                        )
+                    with Vertical(classes="form-col"):
+                        yield Label("Fecha límite (AAAA-MM-DD)")
                         yield Input(
                             value=task.due_date.isoformat() if task and task.due_date else "",
                             id="f-due-date",
                             placeholder=date.today().isoformat(),
                         )
-                    with Vertical(classes="form-col"):
-                        yield Label("Etiquetas (separadas por comas)")
-                        yield Input(
-                            value=", ".join(task.labels) if task else "",
-                            id="f-labels",
-                            placeholder="bug, backend",
-                        )
+
+                yield Label("Etiquetas (separadas por comas)")
+                yield Input(
+                    value=", ".join(task.labels) if task else "",
+                    id="f-labels",
+                    placeholder="bug, backend",
+                )
 
                 yield Static("", id="form-error")
 
@@ -121,31 +145,72 @@ class TaskFormScreen(ModalScreen[Task | None]):
             error.update("[red]El título es obligatorio[/red]")
             return
 
-        if not due_raw:
-            error.update("[red]La fecha límite es obligatoria[/red]")
+        acceptance_criteria = self.query_one("#f-acceptance-criteria", TextArea).text.strip()
+        if not acceptance_criteria:
+            error.update("[red]El criterio de aceptación es obligatorio[/red]")
             return
 
-        try:
-            due_date = date.fromisoformat(due_raw)
-        except ValueError:
-            error.update("[red]La fecha límite debe tener el formato AAAA-MM-DD[/red]")
+        status = self.query_one("#f-status", Select).value
+        service_class = self.query_one("#f-service-class", Select).value
+        priority = self.query_one("#f-priority", Select).value
+
+        due_date: date | None = None
+        if due_raw:
+            try:
+                due_date = date.fromisoformat(due_raw)
+            except ValueError:
+                error.update("[red]La fecha límite debe tener el formato AAAA-MM-DD[/red]")
+                return
+        elif service_class == ServiceClass.FIXED_DATE:
+            error.update("[red]Las tareas de clase 'Fecha fija' necesitan una fecha límite[/red]")
             return
+        objective_value = self.query_one("#f-objective", Select).value
+        objective = "" if objective_value == Select.NULL else objective_value
+
+        if service_class != ServiceClass.EXPEDITE and not objective:
+            error.update("[red]Selecciona un objetivo (o crea uno primero con 'o')[/red]")
+            return
+
+        if service_class == ServiceClass.EXPEDITE:
+            objective = ""
+
+        if status == Status.DOING:
+            if service_class == ServiceClass.EXPEDITE:
+                doing_count = sum(
+                    1
+                    for t in self.other_tasks
+                    if t.service_class == ServiceClass.EXPEDITE and t.status == Status.DOING
+                )
+                if doing_count >= EXPEDITE_DOING_LIMIT:
+                    error.update(
+                        f"[red]Ya hay {EXPEDITE_DOING_LIMIT} tareas Expedito en progreso. "
+                        "Termina alguna antes de empezar otra.[/red]"
+                    )
+                    return
+            else:
+                doing_count = sum(
+                    1 for t in self.other_tasks if t.objective == objective and t.status == Status.DOING
+                )
+                if doing_count >= LANE_WIP_LIMIT:
+                    error.update(
+                        f"[red]El carril «{objective}» ya tiene {LANE_WIP_LIMIT} tarea(s) en progreso "
+                        f"(límite de WIP). Termina esa antes de empezar otra.[/red]"
+                    )
+                    return
 
         labels_raw = self.query_one("#f-labels", Input).value
         labels = [chunk.strip() for chunk in labels_raw.split(",") if chunk.strip()]
-
-        status = self.query_one("#f-status", Select).value
-        task_type = self.query_one("#f-type", Select).value
-        priority = self.query_one("#f-priority", Select).value
         description = self.query_one("#f-description", TextArea).text
 
         if self.editing_task:
             task = self.editing_task
             task.title = title
             task.description = description
+            task.acceptance_criteria = acceptance_criteria
             task.status = status
-            task.type = task_type
+            task.service_class = service_class
             task.priority = priority
+            task.objective = objective
             task.labels = labels
             task.due_date = due_date
             task.updated_at = datetime.now()
@@ -153,12 +218,19 @@ class TaskFormScreen(ModalScreen[Task | None]):
             task = Task(
                 title=title,
                 description=description,
+                acceptance_criteria=acceptance_criteria,
                 status=status,
-                type=task_type,
+                service_class=service_class,
                 priority=priority,
+                objective=objective,
                 labels=labels,
                 due_date=due_date,
             )
+
+        if task.status == Status.DOING and task.started_at is None:
+            task.started_at = date.today()
+        elif task.status != Status.DOING and task.status != Status.DONE:
+            task.started_at = None
 
         if task.status == Status.DONE and task.completed_at is None:
             task.completed_at = date.today()
