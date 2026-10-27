@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Build standalone binary
+        run: |
+          poetry run pyinstaller \
+            --name kanban-tui \
+            --onefile \
+            --noconfirm \
+            --clean \
+            --paths "$(pwd)/src" \
+            --add-data "$(pwd)/src/kanban_tui/kanban.tcss:kanban_tui" \
+            --distpath dist \
+            --workpath build \
+            --specpath build \
+            scripts/run_kanban_tui.py
+
+      - name: Rename artifact
+        run: mv dist/kanban-tui dist/kanban-tui-linux-x86_64
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/kanban-tui-linux-x86_64
+          generate_release_notes: true

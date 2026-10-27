@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -35,8 +36,14 @@ PRIORITY_DEFAULT = 3
 
 APPROACHING_DAYS = 3
 STALE_INTANGIBLE_DAYS = 30
+STUCK_DOING_DAYS = 5
 
 ACCEPTANCE_CRITERIA_MARKER = "## Criterio de aceptación"
+COMMENTS_MARKER = "## Comentarios"
+
+_COMMENT_LINE_RE = re.compile(
+    r"^-\s*(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s*—\s*(?P<text>.*)$"
+)
 
 _LEGACY_PRIORITY = {
     "low": 5,
@@ -112,6 +119,36 @@ def _parse_datetime(value) -> datetime:
 
 
 @dataclass
+class Comment:
+    text: str
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    def render(self) -> str:
+        lines = (self.text or "").splitlines() or [""]
+        first, rest = lines[0], lines[1:]
+        rendered = [f"- {self.timestamp.strftime('%Y-%m-%d %H:%M')} — {first}"]
+        rendered.extend(f"  {line}" for line in rest)
+        return "\n".join(rendered)
+
+
+def _parse_comments(raw: str) -> list[Comment]:
+    comments: list[Comment] = []
+    for line in raw.splitlines():
+        if not line.strip():
+            continue
+        match = _COMMENT_LINE_RE.match(line.strip())
+        if match:
+            try:
+                timestamp = datetime.strptime(match.group("ts"), "%Y-%m-%d %H:%M")
+            except ValueError:
+                timestamp = datetime.now()
+            comments.append(Comment(text=match.group("text"), timestamp=timestamp))
+        elif comments:
+            comments[-1].text += "\n" + line.strip()
+    return comments
+
+
+@dataclass
 class Task:
     title: str
     status: Status = Status.BACKLOG
@@ -124,6 +161,8 @@ class Task:
     completed_at: date | None = None
     description: str = ""
     acceptance_criteria: str = ""
+    comments: list[Comment] = field(default_factory=list)
+    blocked_by: str = ""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -132,7 +171,7 @@ class Task:
     @classmethod
     def from_markdown(cls, text: str, path: Path | None = None) -> "Task":
         meta, body = cls._split_frontmatter(text)
-        description, acceptance_criteria = cls._split_body(body)
+        description, acceptance_criteria, comments = cls._split_body(body)
         return cls(
             title=str(meta.get("title") or (path.stem if path else "Untitled")),
             status=Status(meta.get("status", "backlog")),
@@ -145,6 +184,8 @@ class Task:
             completed_at=_parse_date(meta.get("completed_at")),
             description=description,
             acceptance_criteria=acceptance_criteria,
+            comments=comments,
+            blocked_by=str(meta.get("blocked_by") or ""),
             id=str(meta.get("id") or uuid.uuid4().hex[:8]),
             created_at=_parse_datetime(meta.get("created_at")),
             updated_at=_parse_datetime(meta.get("updated_at")),
@@ -162,14 +203,32 @@ class Task:
         return {}, text
 
     @staticmethod
-    def _split_body(body: str) -> tuple[str, str]:
+    def _split_body(body: str) -> tuple[str, str, list[Comment]]:
         text = body.strip("\n")
-        marker_idx = text.find(ACCEPTANCE_CRITERIA_MARKER)
-        if marker_idx == -1:
-            return text.strip(), ""
-        description = text[:marker_idx].strip()
-        acceptance_criteria = text[marker_idx + len(ACCEPTANCE_CRITERIA_MARKER) :].strip()
-        return description, acceptance_criteria
+        acc_idx = text.find(ACCEPTANCE_CRITERIA_MARKER)
+        com_idx = text.find(COMMENTS_MARKER)
+        marker_positions = [i for i in (acc_idx, com_idx) if i != -1]
+        if not marker_positions:
+            return text.strip(), "", []
+
+        description = text[: min(marker_positions)].strip()
+
+        acceptance_criteria = ""
+        if acc_idx != -1:
+            acc_start = acc_idx + len(ACCEPTANCE_CRITERIA_MARKER)
+            acc_end = com_idx if com_idx != -1 and com_idx > acc_idx else len(text)
+            acceptance_criteria = text[acc_start:acc_end].strip()
+
+        comments: list[Comment] = []
+        if com_idx != -1:
+            comments = _parse_comments(text[com_idx + len(COMMENTS_MARKER) :].strip())
+
+        return description, acceptance_criteria, comments
+
+    def add_comment(self, text: str) -> Comment:
+        comment = Comment(text=text.strip())
+        self.comments.append(comment)
+        return comment
 
     def to_markdown(self) -> str:
         meta = {
@@ -183,6 +242,7 @@ class Task:
             "due_date": self.due_date,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
+            "blocked_by": self.blocked_by,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -190,6 +250,9 @@ class Task:
         body_parts = [self.description.strip()]
         if self.acceptance_criteria.strip():
             body_parts.append(f"{ACCEPTANCE_CRITERIA_MARKER}\n\n{self.acceptance_criteria.strip()}")
+        if self.comments:
+            comments_text = "\n".join(comment.render() for comment in self.comments)
+            body_parts.append(f"{COMMENTS_MARKER}\n\n{comments_text}")
         body = "\n\n".join(part for part in body_parts if part)
         return f"---\n{front}---\n\n{body}\n"
 
@@ -200,16 +263,19 @@ class Task:
     def is_overdue(self) -> bool:
         return bool(self.due_date and self.due_date < date.today() and self.status != Status.DONE)
 
-    @property
-    def is_approaching(self) -> bool:
+    def is_approaching(self, threshold_days: int = APPROACHING_DAYS) -> bool:
         if not self.due_date or self.status == Status.DONE:
             return False
         days_left = (self.due_date - date.today()).days
-        return 0 <= days_left <= APPROACHING_DAYS
+        return 0 <= days_left <= threshold_days
 
-    @property
-    def is_stale_intangible(self) -> bool:
+    def is_stale_intangible(self, threshold_days: int = STALE_INTANGIBLE_DAYS) -> bool:
         if self.service_class != ServiceClass.INTANGIBLE or self.status == Status.DONE:
             return False
         reference = self.updated_at.date() if isinstance(self.updated_at, datetime) else self.updated_at
-        return (date.today() - reference).days > STALE_INTANGIBLE_DAYS
+        return (date.today() - reference).days > threshold_days
+
+    def is_stuck_doing(self, threshold_days: int = STUCK_DOING_DAYS) -> bool:
+        if self.status != Status.DOING or not self.started_at:
+            return False
+        return (date.today() - self.started_at).days >= threshold_days

@@ -9,7 +9,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
 from ..models import PRIORITY_DEFAULT, ServiceClass, Status, Task
-from ..objectives import EXPEDITE_DOING_LIMIT, LANE_WIP_LIMIT
+from ..settings import BoardSettings
+from ..wip_rules import global_doing_count, intangible_state
 
 STATUS_LABELS = {
     Status.BACKLOG: "Pendiente",
@@ -44,6 +45,8 @@ class TaskFormScreen(ModalScreen[Task | None]):
         objective_names: list[str] | None = None,
         default_objective: str = "",
         other_tasks: list[Task] | None = None,
+        active_objective_names: list[str] | None = None,
+        settings: BoardSettings | None = None,
     ) -> None:
         super().__init__()
         self.editing_task = task
@@ -51,6 +54,8 @@ class TaskFormScreen(ModalScreen[Task | None]):
         self.objective_names = objective_names or []
         self.default_objective = default_objective
         self.other_tasks = other_tasks or []
+        self.active_objective_names = active_objective_names or []
+        self.settings = settings or BoardSettings()
 
     def compose(self) -> ComposeResult:
         task = self.editing_task
@@ -111,6 +116,16 @@ class TaskFormScreen(ModalScreen[Task | None]):
                             placeholder=date.today().isoformat(),
                         )
 
+                yield Label("Bloqueada por (mismo objetivo, opcional)")
+                blocking_options = self._blocking_options(current_objective)
+                blocking_ids = {option_id for _, option_id in blocking_options}
+                yield Select(
+                    blocking_options,
+                    value=task.blocked_by if (task and task.blocked_by in blocking_ids) else Select.NULL,
+                    id="f-blocked-by",
+                    allow_blank=True,
+                )
+
                 yield Label("Etiquetas (separadas por comas)")
                 yield Input(
                     value=", ".join(task.labels) if task else "",
@@ -126,6 +141,21 @@ class TaskFormScreen(ModalScreen[Task | None]):
 
     def on_mount(self) -> None:
         self.query_one("#f-title", Input).focus()
+
+    def _blocking_options(self, objective_name: str) -> list[tuple[str, str]]:
+        exclude_id = self.editing_task.id if self.editing_task else None
+        return [
+            (t.title, t.id)
+            for t in self.other_tasks
+            if t.objective == objective_name and t.id != exclude_id
+        ]
+
+    @on(Select.Changed, "#f-objective")
+    def _on_objective_changed(self, event: "Select.Changed") -> None:
+        value = event.value
+        objective_name = "" if value == Select.NULL else value
+        blocked_by_select = self.query_one("#f-blocked-by", Select)
+        blocked_by_select.set_options(self._blocking_options(objective_name))
 
     @on(Button.Pressed, "#f-cancel")
     def cancel(self) -> None:
@@ -174,29 +204,48 @@ class TaskFormScreen(ModalScreen[Task | None]):
         if service_class == ServiceClass.EXPEDITE:
             objective = ""
 
+        blocked_by_value = self.query_one("#f-blocked-by", Select).value
+        blocked_by = "" if blocked_by_value == Select.NULL else blocked_by_value
+
         if status == Status.DOING:
+            if blocked_by:
+                blocker = next((t for t in self.other_tasks if t.id == blocked_by), None)
+                if blocker is not None and blocker.status != Status.DONE:
+                    error.update(
+                        f"[red]Bloqueada por «{blocker.title}». Termina esa tarea primero.[/red]"
+                    )
+                    return
             if service_class == ServiceClass.EXPEDITE:
                 doing_count = sum(
                     1
                     for t in self.other_tasks
                     if t.service_class == ServiceClass.EXPEDITE and t.status == Status.DOING
                 )
-                if doing_count >= EXPEDITE_DOING_LIMIT:
+                if doing_count >= self.settings.expedite_doing_limit:
                     error.update(
-                        f"[red]Ya hay {EXPEDITE_DOING_LIMIT} tareas Expedito en progreso. "
+                        f"[red]Ya hay {self.settings.expedite_doing_limit} tareas Expedito en progreso. "
                         "Termina alguna antes de empezar otra.[/red]"
                     )
                     return
             else:
-                doing_count = sum(
-                    1 for t in self.other_tasks if t.objective == objective and t.status == Status.DOING
-                )
-                if doing_count >= LANE_WIP_LIMIT:
+                doing_count = global_doing_count(self.other_tasks, visible_names=self.objective_names)
+                if doing_count >= self.settings.global_wip_limit:
                     error.update(
-                        f"[red]El carril «{objective}» ya tiene {LANE_WIP_LIMIT} tarea(s) en progreso "
-                        f"(límite de WIP). Termina esa antes de empezar otra.[/red]"
+                        f"[red]Ya hay {self.settings.global_wip_limit} tarea(s) en progreso en el tablero "
+                        "(límite de WIP global). Termina esa antes de empezar otra.[/red]"
                     )
                     return
+
+                if service_class != ServiceClass.INTANGIBLE:
+                    _, needs_intangible = intangible_state(
+                        self.other_tasks, self.active_objective_names, self.settings.intangible_cadence
+                    )
+                    if objective in needs_intangible:
+                        error.update(
+                            f"[red]Toca hacer una tarea Intangible en «{objective}» antes de seguir "
+                            "con Estándar/Fecha fija.[/red]"
+                        )
+                        return
 
         labels_raw = self.query_one("#f-labels", Input).value
         labels = [chunk.strip() for chunk in labels_raw.split(",") if chunk.strip()]
@@ -213,6 +262,7 @@ class TaskFormScreen(ModalScreen[Task | None]):
             task.objective = objective
             task.labels = labels
             task.due_date = due_date
+            task.blocked_by = blocked_by
             task.updated_at = datetime.now()
         else:
             task = Task(
@@ -225,6 +275,7 @@ class TaskFormScreen(ModalScreen[Task | None]):
                 objective=objective,
                 labels=labels,
                 due_date=due_date,
+                blocked_by=blocked_by,
             )
 
         if task.status == Status.DOING and task.started_at is None:

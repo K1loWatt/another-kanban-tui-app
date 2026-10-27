@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
-
 from rich.markup import escape
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Static
 
 from ..models import Status, Task, oneline
+from ..settings import BoardSettings
 from .column import Column
 
 STATUS_ORDER = [Status.BACKLOG, Status.DOING, Status.DONE]
@@ -18,6 +18,7 @@ class Lane(Vertical):
     """Un carril horizontal del tablero: el de urgencias, o uno por objetivo."""
 
     is_active: reactive[bool] = reactive(False)
+    needs_intangible: reactive[bool] = reactive(False)
 
     def __init__(
         self,
@@ -29,6 +30,7 @@ class Lane(Vertical):
         priority: int | None = None,
         description: str = "",
         wip_limit: int | None = None,
+        is_paused: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -39,9 +41,12 @@ class Lane(Vertical):
         self.priority = priority
         self.description = description
         self.wip_limit = wip_limit
+        self.is_paused = is_paused
         self.active_column_index = 0
         self.tasks: list[Task] = []
         self.add_class("urgency-lane" if is_urgency else "objective-lane")
+        if is_paused:
+            self.add_class("paused-lane")
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="lane-header"):
@@ -72,22 +77,27 @@ class Lane(Vertical):
                 f"{doing_text}   ·   Hecho {done}"
             )
 
+        badges = []
+        if self.is_paused:
+            badges.append("[dim]⏸ apagado[/dim]")
+        if self.needs_intangible:
+            badges.append("[bold #d9b36c]💡 toca intangible[/]")
+        badge_text = "   ·   " + "   ·   ".join(badges) if badges else ""
+
         return (
             f"\U0001f3af [bold]{escape(self.title_text)}[/bold]   ·   P{self.priority}   ·   "
-            f"Pend {backlog}   ·   {doing_text}   ·   Hecho {done}   ·   "
-            f"esta semana: {self._weekly_started_count()}"
+            f"Pend {backlog}   ·   {doing_text}   ·   Hecho {done}{badge_text}"
         )
 
-    def _weekly_started_count(self) -> int:
-        today = date.today()
-        iso_year, iso_week, _ = today.isocalendar()
-        count = 0
-        for task in self.tasks:
-            if task.started_at:
-                y, w, _ = task.started_at.isocalendar()
-                if (y, w) == (iso_year, iso_week):
-                    count += 1
-        return count
+    def set_flags(self, *, needs_intangible: bool = False) -> None:
+        self.needs_intangible = needs_intangible
+        self._refresh_header()
+
+    def _refresh_header(self) -> None:
+        try:
+            self.query_one(f"#lane-title-{self.lane_key}", Static).update(self._header_text())
+        except NoMatches:
+            pass
 
     @property
     def columns(self) -> list[Column]:
@@ -100,14 +110,15 @@ class Lane(Vertical):
     def doing_count(self) -> int:
         return sum(1 for task in self.tasks if task.status == Status.DOING)
 
-    def set_tasks(self, tasks: list[Task]) -> None:
+    def set_tasks(self, tasks: list[Task], settings: BoardSettings | None = None) -> None:
         self.tasks = tasks
         by_status: dict[Status, list[Task]] = {s: [] for s in STATUS_ORDER}
         for task in tasks:
             by_status[task.status].append(task)
+        id_to_task = {t.id: t for t in tasks}
         for column in self.columns:
-            column.set_tasks(by_status[column.status])
-        self.query_one(f"#lane-title-{self.lane_key}", Static).update(self._header_text())
+            column.set_tasks(by_status[column.status], id_to_task, settings)
+        self._refresh_header()
         self._refresh_active_column()
 
     def _refresh_active_column(self) -> None:

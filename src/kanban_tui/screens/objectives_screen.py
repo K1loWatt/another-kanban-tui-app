@@ -12,16 +12,18 @@ from textual.widgets import Button, Input, Select, Static
 from .. import storage
 from ..models import Status, oneline
 from ..objectives import (
-    MAX_ACTIVE_OBJECTIVES,
     PRIORITY_DEFAULT,
     Objective,
     TooManyActiveObjectives,
     add_objective,
     close_objective,
     load_objectives,
+    pause_objective,
     reopen_objective,
     set_priority,
+    unpause_objective,
 )
+from ..settings import load_settings
 from .confirm import ConfirmScreen
 
 PRIORITY_OPTIONS = [(f"P{i}", i) for i in range(6)]
@@ -37,14 +39,16 @@ class ObjectivesScreen(ModalScreen[bool]):
         self.rows: list[Objective] = []
         self.selected_index = 0
         self._rows_focused = False
+        self._max_active = load_settings(tasks_dir).max_active_objectives
 
     def compose(self) -> ComposeResult:
         with Vertical(id="objectives-dialog"):
             yield Static(
-                f"Objetivos (máx. {MAX_ACTIVE_OBJECTIVES} activos a la vez)", id="objectives-title"
+                f"Objetivos (máx. {self._max_active} activos a la vez)", id="objectives-title"
             )
             yield Static(
-                "↑/↓ seleccionar fila · c cerrar · r reabrir · +/- prioridad · enter en Añadir crea uno",
+                "↑/↓ seleccionar fila · c cerrar · r reabrir · p apagar/encender · "
+                "+/- prioridad · enter en Añadir crea uno",
                 id="objectives-hint",
             )
             yield VerticalScroll(id="objectives-body")
@@ -64,9 +68,10 @@ class ObjectivesScreen(ModalScreen[bool]):
         self.query_one("#obj-new-name", Input).focus()
 
     def _load_sorted(self) -> list[Objective]:
+        status_rank = {"active": 0, "paused": 1, "closed": 2}
         return sorted(
             load_objectives(self.tasks_dir),
-            key=lambda o: (not o.is_active, o.priority, o.created_at),
+            key=lambda o: (status_rank.get(o.status, 2), o.priority, o.created_at),
         )
 
     async def refresh_rows(self) -> None:
@@ -79,7 +84,12 @@ class ObjectivesScreen(ModalScreen[bool]):
             body.mount(Static("Sin objetivos todavía.", classes="empty-hint"))
             return
         for objective in self.rows:
-            badge = "🟢 activo" if objective.is_active else "⚪ cerrado"
+            if objective.is_active:
+                badge = "🟢 activo"
+            elif objective.is_paused:
+                badge = "⏸ apagado"
+            else:
+                badge = "⚪ cerrado"
             row = Vertical(classes="objective-row", id=f"obj-row-{objective.id}")
             body.mount(row)
             header_row = Horizontal(classes="objective-row-header")
@@ -91,6 +101,21 @@ class ObjectivesScreen(ModalScreen[bool]):
                 )
             )
             if objective.is_active:
+                header_row.mount(
+                    Button("Apagar", id=f"obj-pause-{objective.id}", classes="objective-row-btn")
+                )
+                header_row.mount(
+                    Button(
+                        "Cerrar",
+                        id=f"obj-close-{objective.id}",
+                        classes="objective-row-btn",
+                        variant="warning",
+                    )
+                )
+            elif objective.is_paused:
+                header_row.mount(
+                    Button("Encender", id=f"obj-unpause-{objective.id}", classes="objective-row-btn")
+                )
                 header_row.mount(
                     Button(
                         "Cerrar",
@@ -117,7 +142,12 @@ class ObjectivesScreen(ModalScreen[bool]):
         if not move_focus or not self.rows:
             return
         objective = self.rows[self.selected_index]
-        button_id = f"#obj-close-{objective.id}" if objective.is_active else f"#obj-reopen-{objective.id}"
+        if objective.is_active:
+            button_id = f"#obj-pause-{objective.id}"
+        elif objective.is_paused:
+            button_id = f"#obj-unpause-{objective.id}"
+        else:
+            button_id = f"#obj-reopen-{objective.id}"
         try:
             self.query_one(button_id, Button).focus()
         except NoMatches:
@@ -144,7 +174,7 @@ class ObjectivesScreen(ModalScreen[bool]):
             return
         priority = self.query_one("#obj-new-priority", Select).value
         try:
-            add_objective(self.tasks_dir, name, description, priority=priority)
+            add_objective(self.tasks_dir, name, description, priority=priority, max_active=self._max_active)
         except TooManyActiveObjectives as exc:
             error.update(f"[red]{exc}[/red]")
             return
@@ -189,7 +219,25 @@ class ObjectivesScreen(ModalScreen[bool]):
         self._rows_focused = True
         error = self.query_one("#objectives-error", Static)
         try:
-            reopen_objective(self.tasks_dir, objective.id)
+            reopen_objective(self.tasks_dir, objective.id, max_active=self._max_active)
+        except TooManyActiveObjectives as exc:
+            error.update(f"[red]{exc}[/red]")
+            return
+        error.update("")
+        self.changed = True
+        await self.refresh_rows()
+
+    async def _pause_objective(self, objective: Objective) -> None:
+        self._rows_focused = True
+        pause_objective(self.tasks_dir, objective.id)
+        self.changed = True
+        await self.refresh_rows()
+
+    async def _unpause_objective(self, objective: Objective) -> None:
+        self._rows_focused = True
+        error = self.query_one("#objectives-error", Static)
+        try:
+            unpause_objective(self.tasks_dir, objective.id, max_active=self._max_active)
         except TooManyActiveObjectives as exc:
             error.update(f"[red]{exc}[/red]")
             return
@@ -216,6 +264,14 @@ class ObjectivesScreen(ModalScreen[bool]):
             objective = next((o for o in self.rows if o.id == button_id.removeprefix("obj-reopen-")), None)
             if objective is not None:
                 await self._reopen_objective(objective)
+        elif button_id.startswith("obj-pause-"):
+            objective = next((o for o in self.rows if o.id == button_id.removeprefix("obj-pause-")), None)
+            if objective is not None:
+                await self._pause_objective(objective)
+        elif button_id.startswith("obj-unpause-"):
+            objective = next((o for o in self.rows if o.id == button_id.removeprefix("obj-unpause-")), None)
+            if objective is not None:
+                await self._unpause_objective(objective)
 
     async def on_key(self, event) -> None:
         key = event.key
@@ -242,12 +298,18 @@ class ObjectivesScreen(ModalScreen[bool]):
             return
         objective = self.rows[self.selected_index]
 
-        if key == "c" and objective.is_active:
+        if key == "c" and not objective.is_closed:
             event.stop()
             self._close_objective(objective)
-        elif key == "r" and not objective.is_active:
+        elif key == "r" and objective.is_closed:
             event.stop()
             await self._reopen_objective(objective)
+        elif key == "p" and objective.is_active:
+            event.stop()
+            await self._pause_objective(objective)
+        elif key == "p" and objective.is_paused:
+            event.stop()
+            await self._unpause_objective(objective)
         elif event.character == "+":
             event.stop()
             await self._adjust_priority(objective, -1)

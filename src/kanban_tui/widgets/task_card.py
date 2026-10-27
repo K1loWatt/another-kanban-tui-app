@@ -6,6 +6,7 @@ from textual.widgets import Static
 
 from ..colors import label_color, priority_color
 from ..models import ServiceClass, Status, Task, oneline
+from ..settings import BoardSettings
 
 SERVICE_CLASS_ICON = {
     ServiceClass.EXPEDITE: "\U0001f525",
@@ -25,27 +26,47 @@ class TaskCard(Static):
     selected: reactive[bool] = reactive(False)
     blink_on: reactive[bool] = reactive(False)
 
-    def __init__(self, task: Task, **kwargs) -> None:
+    def __init__(
+        self,
+        task: Task,
+        blocking_task: Task | None = None,
+        settings: BoardSettings | None = None,
+        **kwargs,
+    ) -> None:
         self.task_data = task
+        self.blocking_task = blocking_task
+        self.settings = settings or BoardSettings()
         self.alert = self._compute_alert()
         super().__init__(self._build_markup(), **kwargs)
         self._apply_alert_class()
 
     def _compute_alert(self) -> str:
         task = self.task_data
+        if self.blocking_task is not None:
+            return "blocked"
         if task.status != Status.DONE:
             if task.service_class == ServiceClass.EXPEDITE:
                 return "urgent"
+            if task.is_stuck_doing(self.settings.stuck_doing_days):
+                return "stuck"
             if task.is_overdue:
                 return "overdue"
-            if task.is_approaching:
+            if task.is_approaching(self.settings.approaching_days):
                 return "approaching"
         if task.priority >= LOW_PRIORITY_THRESHOLD:
             return "low"
         return "normal"
 
     def _apply_alert_class(self) -> None:
-        self.remove_class("alert-urgent", "alert-approaching", "alert-overdue", "alert-low", "alert-normal")
+        self.remove_class(
+            "alert-blocked",
+            "alert-urgent",
+            "alert-stuck",
+            "alert-approaching",
+            "alert-overdue",
+            "alert-low",
+            "alert-normal",
+        )
         self.add_class(f"alert-{self.alert}")
 
     def watch_selected(self, value: bool) -> None:
@@ -62,12 +83,18 @@ class TaskCard(Static):
 
         bits = [icon, f"[bold]{escape(task.title)}[/bold]", f"[{color}]P{task.priority}[/]"]
 
+        if self.blocking_task is not None:
+            bits.append("[bold #ff6b6b]🔒 bloqueada[/]")
+
+        if task.is_stuck_doing(self.settings.stuck_doing_days):
+            bits.append("[bold #b36bff]⏳ atascada[/]")
+
         if task.due_date:
             due_style = "bold red" if task.is_overdue else "dim"
             etiqueta = "vencida" if task.is_overdue else "vence"
             bits.append(f"[{due_style}]{etiqueta} {task.due_date.isoformat()}[/{due_style}]")
 
-        if task.is_stale_intangible:
+        if task.is_stale_intangible(self.settings.stale_intangible_days):
             bits.append("[bold #d9b36c]⚠ revisar[/]")
 
         if task.labels:
@@ -76,6 +103,8 @@ class TaskCard(Static):
         title_line = "  ".join(bits)
 
         description = oneline(task.description) or "(sin resumen)"
+        if self.blocking_task is not None:
+            description = f"🔒 Bloqueada por «{self.blocking_task.title}» — {description}"
         acceptance = oneline(task.acceptance_criteria) or "(sin criterio de aceptación)"
 
         return (

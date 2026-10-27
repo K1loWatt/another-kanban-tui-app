@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 OBJECTIVES_FILENAME = "objectives.json"
 MAX_ACTIVE_OBJECTIVES = 4
 DEFAULT_OBJECTIVE_NAME = "General"
-LANE_WIP_LIMIT = 1
 EXPEDITE_DOING_LIMIT = 2
 PRIORITY_MIN = 0
 PRIORITY_MAX = 5
@@ -46,7 +45,7 @@ def _parse_date(value) -> date | None:
 class Objective:
     name: str
     description: str = ""
-    status: str = "active"  # "active" | "closed"
+    status: str = "active"  # "active" | "paused" | "closed"
     priority: int = PRIORITY_DEFAULT  # 0 (highest) .. 5 (lowest)
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     created_at: date = field(default_factory=date.today)
@@ -55,6 +54,19 @@ class Objective:
     @property
     def is_active(self) -> bool:
         return self.status == "active"
+
+    @property
+    def is_paused(self) -> bool:
+        return self.status == "paused"
+
+    @property
+    def is_closed(self) -> bool:
+        return self.status == "closed"
+
+    @property
+    def is_visible(self) -> bool:
+        """Objetivos activos o apagados siguen como carril en el tablero."""
+        return self.status in ("active", "paused")
 
     def to_dict(self) -> dict:
         return {
@@ -108,6 +120,15 @@ def active_objectives(objectives: list[Objective]) -> list[Objective]:
     return [o for o in objectives if o.is_active]
 
 
+def paused_objectives(objectives: list[Objective]) -> list[Objective]:
+    return [o for o in objectives if o.is_paused]
+
+
+def visible_objectives(objectives: list[Objective]) -> list[Objective]:
+    """Objetivos que siguen como carril en el tablero (activos + apagados)."""
+    return [o for o in objectives if o.is_visible]
+
+
 def ensure_default_objective(tasks_dir: Path) -> list[Objective]:
     """Create objectives.json with a starter objective if it doesn't exist yet."""
     if _path(tasks_dir).exists():
@@ -120,12 +141,16 @@ def ensure_default_objective(tasks_dir: Path) -> list[Objective]:
 
 
 def add_objective(
-    tasks_dir: Path, name: str, description: str, priority: int = PRIORITY_DEFAULT
+    tasks_dir: Path,
+    name: str,
+    description: str,
+    priority: int = PRIORITY_DEFAULT,
+    max_active: int = MAX_ACTIVE_OBJECTIVES,
 ) -> Objective:
     objectives = load_objectives(tasks_dir)
-    if len(active_objectives(objectives)) >= MAX_ACTIVE_OBJECTIVES:
+    if len(active_objectives(objectives)) >= max_active:
         raise TooManyActiveObjectives(
-            f"Ya hay {MAX_ACTIVE_OBJECTIVES} objetivos activos. Cierra uno antes de crear otro."
+            f"Ya hay {max_active} objetivos activos. Cierra uno antes de crear otro."
         )
     objective = Objective(
         name=name.strip(), description=description.strip(), priority=_clamp_priority(priority)
@@ -154,15 +179,45 @@ def close_objective(tasks_dir: Path, objective_id: str) -> None:
     save_objectives(tasks_dir, objectives)
 
 
-def reopen_objective(tasks_dir: Path, objective_id: str) -> None:
+def reopen_objective(
+    tasks_dir: Path, objective_id: str, max_active: int = MAX_ACTIVE_OBJECTIVES
+) -> None:
     objectives = load_objectives(tasks_dir)
-    if len(active_objectives(objectives)) >= MAX_ACTIVE_OBJECTIVES:
+    if len(active_objectives(objectives)) >= max_active:
         raise TooManyActiveObjectives(
-            f"Ya hay {MAX_ACTIVE_OBJECTIVES} objetivos activos. Cierra uno antes de reabrir otro."
+            f"Ya hay {max_active} objetivos activos. Cierra uno antes de reabrir otro."
         )
     for objective in objectives:
         if objective.id == objective_id:
             objective.status = "active"
             objective.closed_at = None
+            break
+    save_objectives(tasks_dir, objectives)
+
+
+def pause_objective(tasks_dir: Path, objective_id: str) -> None:
+    """Apaga un objetivo activo: sigue como carril al final del tablero (se
+    puede seguir documentando/creando/editando tareas en él) pero deja de
+    contar para el máximo de objetivos activos ni para la cadencia de
+    intangibles."""
+    objectives = load_objectives(tasks_dir)
+    for objective in objectives:
+        if objective.id == objective_id and objective.is_active:
+            objective.status = "paused"
+            break
+    save_objectives(tasks_dir, objectives)
+
+
+def unpause_objective(
+    tasks_dir: Path, objective_id: str, max_active: int = MAX_ACTIVE_OBJECTIVES
+) -> None:
+    objectives = load_objectives(tasks_dir)
+    if len(active_objectives(objectives)) >= max_active:
+        raise TooManyActiveObjectives(
+            f"Ya hay {max_active} objetivos activos. Cierra o apaga uno antes de encender otro."
+        )
+    for objective in objectives:
+        if objective.id == objective_id and objective.is_paused:
+            objective.status = "active"
             break
     save_objectives(tasks_dir, objectives)

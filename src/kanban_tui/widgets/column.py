@@ -7,6 +7,7 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from ..models import ServiceClass, Status, Task
+from ..settings import BoardSettings
 from .task_card import TaskCard
 
 STATUS_TITLES = {
@@ -31,13 +32,22 @@ class Column(Vertical):
         self.lane_key = lane_key
         self.wip_limit = wip_limit
         self.tasks: list[Task] = []
+        self.id_to_task: dict[str, Task] = {}
+        self.settings = BoardSettings()
         self.selected_index = 0
         self.add_class(f"column-{status.value}")
 
-    @staticmethod
-    def _sort_key(task: Task):
-        fixed_date_urgent = (
-            task.service_class == ServiceClass.FIXED_DATE and (task.is_approaching or task.is_overdue)
+    def _blocking_task(self, task: Task) -> Task | None:
+        if not task.blocked_by:
+            return None
+        blocker = self.id_to_task.get(task.blocked_by)
+        if blocker is None or blocker.status == Status.DONE:
+            return None
+        return blocker
+
+    def _sort_key(self, task: Task):
+        fixed_date_urgent = task.service_class == ServiceClass.FIXED_DATE and (
+            task.is_approaching(self.settings.approaching_days) or task.is_overdue
         )
         return (
             0 if fixed_date_urgent else 1,
@@ -46,12 +56,25 @@ class Column(Vertical):
             task.title.lower(),
         )
 
-    def set_tasks(self, tasks: list[Task]) -> None:
+    def set_tasks(
+        self,
+        tasks: list[Task],
+        id_to_task: dict[str, Task] | None = None,
+        settings: BoardSettings | None = None,
+    ) -> None:
+        self.id_to_task = id_to_task or {}
+        self.settings = settings or BoardSettings()
         self.tasks = sorted(tasks, key=self._sort_key)
         self.remove_children()
         if self.tasks:
             for task in self.tasks:
-                self.mount(TaskCard(task))
+                self.mount(
+                    TaskCard(
+                        task,
+                        blocking_task=self._blocking_task(task),
+                        settings=self.settings,
+                    )
+                )
         else:
             self.mount(Static("  Sin tareas", classes="empty-hint"))
 

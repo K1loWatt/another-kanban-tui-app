@@ -11,9 +11,12 @@ from textual.widgets import Button, Static
 
 from .. import storage
 from ..models import ServiceClass, Status, Task
-from ..objectives import LANE_WIP_LIMIT, active_objectives, load_objectives
+from ..objectives import active_objectives, load_objectives, visible_objectives
+from ..settings import load_settings
+from ..wip_rules import global_doing_count, intangible_state
 
 BAR_WIDTH = 24
+DAILY_THROUGHPUT_DAYS = 14
 
 SERVICE_CLASS_LABELS = {
     ServiceClass.STANDARD: "Estándar",
@@ -40,10 +43,6 @@ def _bar(value: int, max_value: int, color: str, width: int = BAR_WIDTH) -> str:
     return f"[{color}]{bar}[/{color}] {value}"
 
 
-def _week_start(d: date) -> date:
-    return d - timedelta(days=d.weekday())
-
-
 class MetricsScreen(ModalScreen[None]):
     """Pantalla de solo lectura con métricas kanban del tablero."""
 
@@ -60,13 +59,21 @@ class MetricsScreen(ModalScreen[None]):
 
     def on_mount(self) -> None:
         tasks = storage.load_all_tasks(self.tasks_dir)
+        settings = load_settings(self.tasks_dir)
         objectives = sorted(
             active_objectives(load_objectives(self.tasks_dir)), key=lambda o: (o.priority, o.created_at)
         )
+        active_names = [o.name for o in objectives]
+        visible_names = [o.name for o in visible_objectives(load_objectives(self.tasks_dir))]
         body = self.query_one("#metrics-body", VerticalScroll)
 
-        body.mount(Static("Throughput — tareas completadas por semana (últimas 8)", classes="metrics-section"))
-        for label, count, max_count in self._weekly_throughput(tasks):
+        body.mount(
+            Static(
+                f"Throughput — tareas completadas por día (últimos {DAILY_THROUGHPUT_DAYS} días)",
+                classes="metrics-section",
+            )
+        )
+        for label, count, max_count in self._daily_throughput(tasks):
             body.mount(Static(f"{label}  {_bar(count, max_count, '#6bbf6b')}", classes="metrics-row"))
 
         body.mount(Static("", classes="metrics-spacer"))
@@ -78,18 +85,62 @@ class MetricsScreen(ModalScreen[None]):
         body.mount(Static(f"Cycle time medio (en progreso → hecho): {cycle_text}", classes="metrics-row"))
 
         body.mount(Static("", classes="metrics-spacer"))
-        body.mount(Static(f"WIP actual por carril (límite {LANE_WIP_LIMIT})", classes="metrics-section"))
-        if not objectives:
-            body.mount(Static("Sin carriles activos.", classes="metrics-row"))
-        for objective in objectives:
-            doing = sum(1 for t in tasks if t.objective == objective.name and t.status == Status.DOING)
-            at_limit = " ⚠ en el límite" if doing >= LANE_WIP_LIMIT else ""
-            body.mount(
-                Static(
-                    f"{objective.name}: {_bar(doing, max(LANE_WIP_LIMIT, 1), '#ffb454')}{at_limit}",
-                    classes="metrics-row",
-                )
+        body.mount(Static("WIP actual", classes="metrics-section"))
+        doing_global = global_doing_count(tasks, visible_names=visible_names)
+        body.mount(
+            Static(
+                f"Objetivos (límite global {settings.global_wip_limit}): "
+                f"{_bar(doing_global, max(settings.global_wip_limit, 1), '#ffb454')}",
+                classes="metrics-row",
             )
+        )
+        doing_urgent = sum(
+            1 for t in tasks if t.service_class == ServiceClass.EXPEDITE and t.status == Status.DOING
+        )
+        body.mount(
+            Static(
+                f"Urgencias (límite {settings.expedite_doing_limit}): "
+                f"{_bar(doing_urgent, max(settings.expedite_doing_limit, 1), '#ff5f56')}",
+                classes="metrics-row",
+            )
+        )
+
+        body.mount(Static("", classes="metrics-spacer"))
+        body.mount(
+            Static(
+                f"Cadencia de intangibles (toca cada {settings.intangible_cadence} tareas)",
+                classes="metrics-section",
+            )
+        )
+        if not objectives:
+            body.mount(Static("Sin objetivos activos.", classes="metrics-row"))
+        else:
+            intangible_streaks, needs_intangible = intangible_state(
+                tasks, active_names, settings.intangible_cadence
+            )
+            for objective in objectives:
+                name = objective.name
+                intangible_badge = " 💡 toca intangible" if name in needs_intangible else ""
+                body.mount(
+                    Static(
+                        f"{name}: racha estándar/fecha fija {intangible_streaks.get(name, 0)}/"
+                        f"{settings.intangible_cadence}{intangible_badge}",
+                        classes="metrics-row",
+                    )
+                )
+
+        body.mount(Static("", classes="metrics-spacer"))
+        body.mount(Static("Bloqueos y tareas atascadas", classes="metrics-section"))
+        blocked_count = sum(
+            1
+            for t in tasks
+            if t.blocked_by
+            and t.status != Status.DONE
+            and any(other.id == t.blocked_by and other.status != Status.DONE for other in tasks)
+        )
+        stuck_count = sum(1 for t in tasks if t.is_stuck_doing(settings.stuck_doing_days))
+        body.mount(Static(f"Tareas bloqueadas por otra: {blocked_count}", classes="metrics-row"))
+        body.mount(Static(f"Tareas atascadas en progreso: {stuck_count}", classes="metrics-row"))
 
         body.mount(Static("", classes="metrics-spacer"))
         body.mount(Static("Tareas activas por clase de servicio", classes="metrics-section"))
@@ -106,21 +157,12 @@ class MetricsScreen(ModalScreen[None]):
             )
 
     @staticmethod
-    def _weekly_throughput(tasks: list[Task]) -> list[tuple[str, int, int]]:
+    def _daily_throughput(tasks: list[Task]) -> list[tuple[str, int, int]]:
         today = date.today()
-        current_week_start = _week_start(today)
-        weeks = [current_week_start - timedelta(weeks=i) for i in range(7, -1, -1)]
-        counts = []
-        for week_start in weeks:
-            week_end = week_start + timedelta(days=6)
-            count = sum(
-                1
-                for t in tasks
-                if t.completed_at and week_start <= t.completed_at <= week_end
-            )
-            counts.append(count)
+        days = [today - timedelta(days=i) for i in range(DAILY_THROUGHPUT_DAYS - 1, -1, -1)]
+        counts = [sum(1 for t in tasks if t.completed_at == day) for day in days]
         max_count = max(counts, default=0)
-        labels = [w.strftime("%d/%m") for w in weeks]
+        labels = [d.strftime("%d/%m") for d in days]
         return [(label, count, max_count) for label, count in zip(labels, counts)]
 
     @staticmethod

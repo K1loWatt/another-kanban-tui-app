@@ -33,6 +33,19 @@ def get_tasks_dir() -> Path:
     return DEFAULT_TASKS_DIR
 
 
+def save_tasks_dir(path: Path) -> None:
+    """Persist a new tasks_dir to config.json, keeping any other keys already there."""
+    data: dict = {}
+    if CONFIG_PATH.exists():
+        try:
+            data = json.loads(CONFIG_PATH.read_text())
+        except Exception:
+            data = {}
+    data["tasks_dir"] = str(path)
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(data, indent=2))
+
+
 def _write_default_config() -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(

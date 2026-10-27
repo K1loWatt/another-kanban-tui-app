@@ -56,6 +56,45 @@ Lane.urgency-lane.active-lane {
     border-top: solid #ff5f56;
 }
 
+Lane.paused-lane {
+    border-top: solid #4a4a4a;
+}
+
+Lane.paused-lane.active-lane {
+    border-top: solid #8a8a8a;
+}
+
+/* Objetivo apagado: todo en gris, pero sigue editable con normalidad. */
+Lane.paused-lane .lane-title,
+Lane.paused-lane .lane-description {
+    color: #6b6b6b;
+}
+
+Lane.paused-lane TaskCard {
+    color: #6b6b6b;
+    border-left: thick #4a4a4a;
+    background: transparent;
+    text-style: none;
+}
+
+Lane.paused-lane TaskCard.blink-active {
+    color: #6b6b6b;
+    background: transparent;
+}
+
+Lane.paused-lane TaskCard.selected {
+    background: #333333;
+    color: #cfcfcf;
+    text-style: bold;
+}
+
+#global-wip-banner {
+    height: 1;
+    padding: 0 3;
+    color: #a8835a;
+    text-style: bold;
+}
+
 .lane-header {
     height: 1;
     margin-bottom: 0;
@@ -98,6 +137,19 @@ TaskCard {
     color: #d8c3a0;
     text-wrap: nowrap;
     text-overflow: ellipsis;
+}
+
+/* Bloqueada por otra tarea del mismo objetivo: roja fija, no se puede pillar */
+TaskCard.alert-blocked {
+    color: #ffb3b3;
+    border-left: thick #ff3b3b;
+    text-style: bold;
+}
+
+/* Lleva demasiados días en progreso: morada fija, toca cerrarla o partirla */
+TaskCard.alert-stuck {
+    color: #d9b3ff;
+    border-left: thick #b36bff;
 }
 
 /* Expedito: parpadea en rojo */
@@ -175,13 +227,13 @@ TaskFormScreen, ConfirmScreen {
 }
 
 #f-description {
-    height: 4;
+    height: 10;
     border: round #2e2112;
     margin-bottom: 1;
 }
 
 #f-acceptance-criteria {
-    height: 3;
+    height: 10;
     border: round #2e2112;
     margin-bottom: 1;
 }
@@ -372,4 +424,119 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen {
 
 .metrics-spacer {
     height: 1;
+}
+
+SettingsScreen {
+    align: center middle;
+}
+
+#settings-dialog {
+    width: 104;
+    max-width: 96%;
+    height: auto;
+    max-height: 94%;
+    background: #1c140a;
+    border: round #ff9d3d;
+    padding: 1 2;
+}
+
+#settings-title {
+    text-style: bold;
+    color: #e8d2b0;
+    padding-bottom: 1;
+}
+
+#settings-body {
+    height: auto;
+    max-height: 34;
+}
+
+#settings-body Label {
+    height: 1;
+    margin: 0;
+    color: #a8835a;
+}
+
+#settings-body Input {
+    margin-bottom: 1;
+}
+
+.settings-hint {
+    color: #8a6a45;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.settings-section {
+    text-style: bold;
+    color: #c9a06a;
+    padding-top: 1;
+}
+
+#settings-error {
+    color: #ff5f56;
+    height: auto;
+}
+
+#settings-actions {
+    height: auto;
+    padding-top: 1;
+    align: right middle;
+}
+
+#settings-actions Button {
+    margin-left: 1;
+}
+
+TaskDetailScreen {
+    align: center middle;
+}
+
+#detail-dialog {
+    width: 100;
+    max-width: 96%;
+    height: auto;
+    max-height: 92%;
+    background: #1c140a;
+    border: round #ff9d3d;
+    padding: 1 2;
+}
+
+#detail-title {
+    text-style: bold;
+    color: #e8d2b0;
+    padding-bottom: 1;
+}
+
+#detail-body {
+    height: auto;
+    max-height: 24;
+}
+
+.detail-block {
+    color: #d8c3a0;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.detail-comment {
+    color: #d8c3a0;
+    height: auto;
+    margin-bottom: 1;
+    padding-left: 1;
+}
+
+#detail-actions {
+    height: auto;
+    padding-top: 1;
+    align: right middle;
+}
+
+#detail-dialog .form-row {
+    padding-top: 1;
+}
+
+#detail-comment-input {
+    width: 1fr;
+    margin-right: 1;
 }
