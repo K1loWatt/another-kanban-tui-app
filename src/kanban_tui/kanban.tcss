@@ -74,21 +74,12 @@ Lane.paused-lane TaskCard.selected {
     text-style: bold;
 }
 
-#top-banner {
+#stats-banner {
     height: 1;
-    padding: 0 3;
-}
-
-#global-wip-banner {
     width: 1fr;
-    color: #6272a4;
-    text-style: bold;
-}
-
-#intangible-banner {
-    width: auto;
-    color: #ffb86c;
-    text-style: bold;
+    background: #323548;
+    content-align: center middle;
+    margin-bottom: 1;
 }
 
 .lane-header {
@@ -280,11 +271,11 @@ TaskFormScreen, ConfirmScreen {
     padding-bottom: 1;
 }
 
-ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen {
+ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
     align: center middle;
 }
 
-#objectives-dialog, #metrics-dialog, #summary-dialog {
+#objectives-dialog, #metrics-dialog, #summary-dialog, #recurring-dialog {
     width: 94%;
     height: 94%;
     background: #313442;
@@ -292,7 +283,7 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen {
     padding: 1 2;
 }
 
-#objectives-title, #metrics-title, #summary-title {
+#objectives-title, #metrics-title, #summary-title, #recurring-title {
     text-style: bold;
     color: #f8f8f2;
     padding-bottom: 1;
@@ -313,17 +304,82 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen {
     margin-bottom: 1;
 }
 
-#objectives-hint {
+#objectives-hint, #recurring-hint {
     color: #6272a4;
     padding-bottom: 1;
 }
 
-#objectives-body, #metrics-body {
+#objectives-body, #metrics-body, #recurring-body {
     height: 1fr;
 }
 
-#objectives-dialog .form-row {
+#objectives-dialog .form-row, #recurring-dialog .form-row {
     height: auto;
+}
+
+#rec-new-name {
+    width: 1fr;
+    margin-right: 1;
+}
+
+#rec-new-interval {
+    width: 22;
+    margin-right: 1;
+}
+
+#rec-new-btn {
+    width: auto;
+    min-width: 10;
+}
+
+#rec-new-description {
+    margin-bottom: 1;
+}
+
+#recurring-error {
+    color: #ff5555;
+    height: auto;
+    padding-bottom: 1;
+}
+
+#recurring-actions {
+    height: auto;
+    padding-top: 1;
+    align: right middle;
+}
+
+.recurring-row {
+    height: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+.recurring-row-header {
+    height: 1;
+    align: left middle;
+}
+
+.recurring-row-name {
+    width: 1fr;
+    color: #f8f8f2;
+}
+
+.recurring-row-description {
+    height: 1;
+    color: #6272a4;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.recurring-row-btn {
+    width: auto;
+    min-width: 10;
+    height: 1;
+    padding: 0 1;
+    border: none;
+    background: #44475a;
+    color: #ffb86c;
+    margin-left: 1;
 }
 
 #obj-new-name {

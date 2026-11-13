@@ -5,7 +5,7 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from ..colors import label_color, priority_color
-from ..models import ServiceClass, Status, Task, oneline
+from ..models import ServiceClass, Status, Task, format_date, oneline
 from ..settings import BoardSettings
 
 SERVICE_CLASS_ICON = {
@@ -92,7 +92,7 @@ class TaskCard(Static):
         if task.due_date:
             due_style = "bold red" if task.is_overdue else "dim"
             etiqueta = "vencida" if task.is_overdue else "vence"
-            bits.append(f"[{due_style}]{etiqueta} {task.due_date.isoformat()}[/{due_style}]")
+            bits.append(f"[{due_style}]{etiqueta} {format_date(task.due_date)}[/{due_style}]")
 
         if task.is_stale_intangible(self.settings.stale_intangible_days):
             bits.append("[bold #d9b36c]⚠ revisar[/]")

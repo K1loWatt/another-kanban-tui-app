@@ -7,7 +7,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
-from ..models import Status, Task
+from ..models import Status, Task, format_date
 from ..widgets.task_card import SERVICE_CLASS_ICON
 
 STATUS_LABELS = {
@@ -26,23 +26,18 @@ class ObjectiveSummaryScreen(ModalScreen[None]):
         self,
         title: str,
         *,
-        is_urgency: bool,
         priority: int | None,
         wip_limit: int | None,
         tasks: list[Task],
     ) -> None:
         super().__init__()
         self.lane_title = title
-        self.is_urgency = is_urgency
         self.priority = priority
         self.wip_limit = wip_limit
         self.tasks = tasks
 
     def compose(self) -> ComposeResult:
-        icon = "\U0001f6a8" if self.is_urgency else "\U0001f3af"
-        heading = f"{icon} {self.lane_title}"
-        if not self.is_urgency:
-            heading += f"  ·  prioridad P{self.priority}"
+        heading = f"\U0001f3af {self.lane_title}  ·  prioridad P{self.priority}"
         with Vertical(id="summary-dialog"):
             yield Static(heading, id="summary-title")
             yield Static(self._stats_line(), id="summary-stats")
@@ -72,7 +67,7 @@ class ObjectiveSummaryScreen(ModalScreen[None]):
         header = (
             f"{icon} [bold]{escape(task.title)}[/bold]   "
             f"[dim]{STATUS_LABELS[task.status]} · P{task.priority}"
-            f"{'  ·  vence ' + task.due_date.isoformat() if task.due_date else ''}[/dim]"
+            f"{'  ·  vence ' + format_date(task.due_date) if task.due_date else ''}[/dim]"
         )
         description = escape(task.description) or "(sin resumen)"
         acceptance = escape(task.acceptance_criteria) or "(sin criterio de aceptación)"

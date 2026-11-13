@@ -10,7 +10,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Static
 
 from .. import storage
-from ..models import Status, Task
+from ..models import DATETIME_DISPLAY_FORMAT, Status, Task, format_date
 from ..settings import load_settings
 from ..widgets.task_card import SERVICE_CLASS_ICON
 
@@ -49,7 +49,7 @@ class TaskDetailScreen(ModalScreen[bool]):
         if task.objective:
             bits.append(f"obj: {escape(task.objective)}")
         if task.due_date:
-            bits.append(f"vence {task.due_date.isoformat()}")
+            bits.append(f"vence {format_date(task.due_date)}")
         if task.labels:
             bits.append(", ".join(task.labels))
         return "   ·   ".join(bits)
@@ -63,7 +63,7 @@ class TaskDetailScreen(ModalScreen[bool]):
         body.remove_children()
 
         if self.task_item.blocked_by:
-            all_tasks = storage.load_all_tasks(self.tasks_dir)
+            all_tasks = storage.load_active_tasks(self.tasks_dir)
             blocker = next((t for t in all_tasks if t.id == self.task_item.blocked_by), None)
             if blocker is not None and blocker.status != Status.DONE:
                 body.mount(
@@ -89,7 +89,7 @@ class TaskDetailScreen(ModalScreen[bool]):
             body.mount(Static("(sin comentarios)", classes="empty-hint"))
         else:
             for comment in sorted(self.task_item.comments, key=lambda c: c.timestamp, reverse=True):
-                ts = comment.timestamp.strftime("%Y-%m-%d %H:%M")
+                ts = comment.timestamp.strftime(DATETIME_DISPLAY_FORMAT)
                 body.mount(Static(f"[dim]{ts}[/dim]  {escape(comment.text)}", classes="detail-comment"))
 
     @on(Button.Pressed, "#detail-comment-btn")

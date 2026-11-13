@@ -30,7 +30,7 @@ def _gradient_color(ratio: float) -> str:
 
 
 class Lane(Vertical):
-    """Un carril horizontal del tablero: el de urgencias, o uno por objetivo."""
+    """Un carril horizontal del tablero, uno por objetivo."""
 
     is_active: reactive[bool] = reactive(False)
 
@@ -39,7 +39,6 @@ class Lane(Vertical):
         lane_key: str,
         title: str,
         *,
-        is_urgency: bool = False,
         objective_id: str | None = None,
         priority: int | None = None,
         description: str = "",
@@ -51,7 +50,6 @@ class Lane(Vertical):
         super().__init__(**kwargs)
         self.lane_key = lane_key
         self.title_text = title
-        self.is_urgency = is_urgency
         self.objective_id = objective_id
         self.priority = priority
         self.description = description
@@ -60,16 +58,15 @@ class Lane(Vertical):
         self.created_at = created_at
         self.active_column_index = 0
         self.tasks: list[Task] = []
-        self.add_class("urgency-lane" if is_urgency else "objective-lane")
+        self.add_class("objective-lane")
         if is_paused:
             self.add_class("paused-lane")
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="lane-header"):
             yield Static(self._header_text(), classes="lane-title", id=f"lane-title-{self.lane_key}")
-        if not self.is_urgency:
-            description = oneline(self.description) if self.description else "(sin descripción)"
-            yield Static(f"   {description}", classes="lane-description")
+        description = oneline(self.description) if self.description else "(sin descripción)"
+        yield Static(f"   {description}", classes="lane-description")
         with Horizontal(classes="lane-body"):
             for status in STATUS_ORDER:
                 wip = self.wip_limit if status == Status.DOING else None
@@ -87,12 +84,6 @@ class Lane(Vertical):
         else:
             doing_text = f"Prog {doing}"
 
-        if self.is_urgency:
-            return (
-                f"\U0001f6a8 [bold]URGENCIAS[/bold]   ·   Pend {backlog}   ·   "
-                f"{doing_text}   ·   Hecho {done}"
-            )
-
         badge_text = "   ·   [dim]⏸ apagado[/dim]" if self.is_paused else ""
 
         return (
@@ -108,11 +99,6 @@ class Lane(Vertical):
 
     def _refresh_border(self) -> None:
         weight = "heavy" if self.is_active else "solid"
-        if self.is_urgency:
-            # Urgencias no lleva color de frescura: siempre neutro, solo
-            # cambia el grosor del borde para marcar que está activa.
-            self.styles.border_top = (weight, "#44475a")
-            return
         if self.is_paused:
             color = "#8a8a8a" if self.is_active else "#4a4a4a"
             self.styles.border_top = ("solid", color)

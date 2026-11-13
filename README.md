@@ -26,7 +26,7 @@ The task form's Descripción and Criterio de aceptación fields are a full
 **10 lines** each (there's real writing room to describe acceptance
 criteria properly).
 
-The app's title bar shows the installed version (`Tablero Kanban v1.1.0`),
+The app's title bar shows the installed version (`Tablero Kanban v1.2.0`),
 so you can always tell which build you're on at a glance. See
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -36,13 +36,16 @@ lane. A single horizontal rule separates one lane from the next (brighter
 when that lane is the active one); task rows within a lane keep a consistent,
 tight vertical rhythm with no extra spacing. Each lane's own title line
 carries its per-column counts and, when paused, its ⏸ apagado badge (e.g.
-`🎯 General · P3 · Pend 2 · Prog 1 · Hecho 4 · ⏸ apagado`). A bar right under
-the header shows the board's single global WIP counter (e.g. `WIP global:
-1/1`, see [WIP limit](#wip-limit)) alongside a 💡 Intangibles pendientes
-counter — a purely informational tally, not a limit, of how many Intangible
-tasks you're "behind" on, computed as (Estándar/Fecha fija/Expedito tasks
-already Hecho) minus (Intangible tasks already Hecho) across the whole
-board. A paused objective's whole lane — title, description, every card — renders
+`🎯 General · P3 · Pend 2 · Prog 1 · Hecho 4 · ⏸ apagado`). Right under the
+header, a single centered stats banner — on a subtly different background
+so it stands out from the rest of the dashboard without being loud — rolls
+up the board's three global indicators in one line: the global WIP counter
+(e.g. `WIP global: 1/1`, see [WIP limit](#wip-limit)), the 💡 Intangibles
+pendientes counter (a purely informational tally, not a limit, of how many
+Intangible tasks you're "behind" on, computed as (Estándar/Fecha
+fija/Expedito tasks already Hecho) minus (Intangible tasks already Hecho)
+across the whole board), and 🔋 Recarga Energía (see [Recarga
+Energía](#recarga-energía)). A paused objective's whole lane — title, description, every card — renders
 in grey, regardless of any alert color it would otherwise have; it's still
 fully editable, just visually out of the way.
 
@@ -65,10 +68,10 @@ see its full detail and comments without entering edit mode (see
 
 ## Swimlanes
 
-The board is organized in horizontal **lanes**:
+The board is organized in horizontal **lanes**, one per **objective** — there's
+no separate fixed lane for Expedite tasks anymore; every task, including
+Expedite ones, belongs to an objective lane like any other:
 
-- **Urgencias** — a fixed lane at the top, always visible, that only ever
-  shows tasks of the Expedite service class.
 - One lane per **objective**, up to a configurable number of active
   objectives at a time (default 4, see [Settings](#settings-a)) (press
   `o` to manage them: create, pause/unpause, close, reopen, reprioritize —
@@ -90,9 +93,9 @@ carry an optional **"Por qué"** (the motivation behind it) — set once at
 creation time in the objectives screen (`o`); it's shown there under the
 description but doesn't clutter the board itself.
 
-Lanes are sorted by **objective priority** (0 = highest, shown first right
-under Urgencias), then by creation date. Objective priority is independent
-from each task's own `priority` field.
+Lanes are sorted by **objective priority** (0 = highest, shown first), then
+by creation date. Objective priority is independent from each task's own
+`priority` field.
 
 ### Lane freshness color
 
@@ -109,10 +112,8 @@ since the objective was created) go from 0 to that cadence; past the
 cadence it just stays solid red. The active lane's border also renders
 **heavy** instead of thin so you can still tell which one you're on
 regardless of its color. This is purely visual — it doesn't block or gate
-anything, unlike the WIP limit. Urgencias and paused lanes are unaffected:
-Urgencias never carries this color at all (its border is always neutral,
-only its thickness changes when it's the active lane), and a paused lane
-stays all grey, as always.
+anything, unlike the WIP limit. Paused lanes are unaffected and stay all
+grey, as always.
 
 Each lane has its own `Backlog` → `Doing` → `Done` columns. A task's column
 is just a `status` field inside its markdown frontmatter — the file never
@@ -121,16 +122,16 @@ moves or gets renamed when you change columns, which keeps sync tools happy
 
 ## Service classes
 
-Every task (except Expedite ones) belongs to exactly one objective/lane and
-has a service class:
+Every task belongs to exactly one objective/lane — including Expedite ones,
+which no longer get a dedicated lane — and has a service class:
 
 - **Estándar** — default FIFO work, respects the lane's WIP limit strictly.
 - **Fecha fija** — gains sort priority automatically as its due date gets
   close or passes.
-- **Expedito** — true emergencies. Any number can sit queued in the
-  Urgencias lane's Backlog, but only a configurable number (default 2) can
-  be in `Doing` at the same time — that cap is enforced only on the `Doing`
-  column, same as any other lane's WIP.
+- **Expedito** — true emergencies. Any number can sit queued in its lane's
+  Backlog, but only a configurable number (default 2) can be in `Doing` at
+  the same time across the *whole board*, regardless of which objective
+  they belong to — that cap is enforced only on `Doing`.
 - **Intangible** — important-but-not-urgent work; flagged on its card if it
   sits untouched for more than a configurable number of days (default 30),
   as a nudge to re-triage it.
@@ -141,8 +142,9 @@ The board enforces a single **global WIP** (default 1) across every
 objective lane combined — by default, only one Estándar/Fecha
 fija/Intangible task can be `Doing` at a time, no matter which objective it
 belongs to. It's shown as the `WIP global: n/limit` banner under the
-header, turning red at the limit. The Urgencias lane is separate and keeps
-its own WIP (default 2) in `Doing` (Expedito tasks can pile up freely in
+header, turning red at the limit. Expedito tasks are exempt from that
+global cap but have their own separate one (default 2) across the whole
+board, wherever they happen to live (Expedito tasks can pile up freely in
 Backlog — that limit only kicks in when moving one into `Doing`). Creating
 or moving a task into Doing beyond either limit is blocked until another
 one moves on. Both limits are configurable from the settings panel
@@ -199,7 +201,7 @@ task's `.md` file, so the escalation is visible even outside the TUI.
 
 Press `m` to open a read-only metrics screen: daily throughput (last 14
 days — no weekly/sprint bucketing, this is a pull-based board), average lead
-time and cycle time, the current global/Urgencias WIP, the board-wide
+time and cycle time, the current global/Expedito WIP, the board-wide
 Intangibles-pendientes debt, counts of currently blocked and
 stuck-in-progress tasks, and the distribution of active tasks by service
 class.
@@ -220,6 +222,47 @@ spot; comments are timestamped and saved straight into the task's own `.md`
 file (under a `## Comentarios` section), so they sync with the rest of the
 task and need no separate storage.
 
+## Archiving tasks (`d`)
+
+Press `d` on the selected task to archive it (asks to confirm first). An
+archived task disappears from the board, from metrics, from WIP counts and
+from every other lane calculation — but its `.md` file is **never deleted**
+from disk, ever; archiving just sets an `archived: true` flag in its
+frontmatter and leaves the file exactly where it was. There's currently no
+in-app "unarchive" button — to bring one back, edit that flag out of the
+file by hand (or delete the line) and reload (`r`).
+
+## Recarga (`shift+r`)
+
+Press `R` to open **Recarga**, a separate panel (not part of the board or
+the objective lanes) for tracking recurring chores — the kind of task you
+do over and over but that doesn't belong in a Backlog/Doing/Hecho flow,
+like "limpiar baño". Each entry has a name, an optional description, an
+**interval** in days (how long it can go before it's considered overdue),
+and a "última vez" date; the **Hecho hoy** button stamps today's date on
+it, and **Quitar** removes it from the list (also without ever touching a
+task file — Recarga has its own separate `recurring.json` in the tasks
+folder).
+
+### Recarga Energía
+
+The last segment of the stats banner described above — a **bold
+percentage** followed by a short bar (e.g. `🔋 Recarga Energía — 62%
+████████████░░░░░░░░░░░░`), both colored on a **red → yellow → green**
+gradient — shows the aggregate health of everything tracked in Recarga.
+For each
+recurring item: its contribution is **1.0** (full) the day it was last
+done, decaying in a straight line down to **0.0** on the day it's due
+(`last_done + interval_days`); if it goes past due, the contribution turns
+*negative* and keeps growing by one full point per extra day late (-1,
+-2, -3…) — there's no floor on how negative a single item can get (every
+recurring chore is treated as non-negotiable, so badly neglecting even one
+of them is meant to tank the whole indicator). The percentage itself is
+the **average** across every item, clamped so it never drops below 0%;
+with nothing in Recarga yet, it shows 100% (nothing owed). It updates
+every time the board reloads (`r`, any task action, or after closing
+Recarga with a change).
+
 ## Settings (`a`)
 
 Press `a` to open the settings panel — every configurable parameter in the
@@ -232,7 +275,7 @@ app lives here, pre-filled with sensible defaults:
   doesn't exist yet. Nothing in the previous folder is touched, moved, or
   deleted.
 - **WIP global** — the limit from [WIP limit](#wip-limit) (default 1).
-- **WIP de Urgencias** — the Expedito `Doing` cap (default 2).
+- **WIP de Expedito** — the Expedito `Doing` cap (default 2).
 - **Máximo de objetivos activos a la vez** — the cap from
   [Swimlanes](#swimlanes) (default 4).
 - **Días en progreso antes de marcar atascada** — the threshold from
@@ -249,7 +292,7 @@ app lives here, pre-filled with sensible defaults:
 Every rule parameter is stored per tasks-folder, in that folder's own
 `settings.json` — switching `tasks_dir` switches to that folder's own set
 of rule parameters too. Saving always reloads the board immediately so new
-limits (e.g. a different Urgencias WIP) take effect without restarting.
+limits (e.g. a different Expedito WIP) take effect without restarting.
 
 ## Task file format
 
@@ -261,7 +304,7 @@ id: a1b2c3d4
 title: Fix production outage on payments API
 status: doing             # backlog | doing | done
 service_class: expedite   # standard | fixed_date | expedite | intangible
-objective: ""              # name of the objective/lane; empty for Expedite
+objective: "General"       # name of the objective/lane every task belongs to
 priority: 0                # 0 (highest) .. 5 (lowest)
 labels:
 - bug
@@ -270,6 +313,7 @@ due_date: 2026-10-10        # optional; required only for fixed_date tasks
 started_at:                 # set automatically the first time it enters Doing
 completed_at:
 blocked_by: ""              # id of another task in the same objective, or empty
+archived: false              # true once archived with `d` — the file is never deleted
 created_at: 2026-10-08 09:15:00
 updated_at: 2026-10-09 08:00:00
 ---
@@ -301,6 +345,16 @@ Older files with a legacy `type: normal|deadline|urgent` field are migrated
 transparently on read (`normal`→Estándar, `deadline`→Fecha fija,
 `urgent`→Expedito) and rewritten in the new format the next time they're
 saved.
+
+### Date format
+
+Every date shown or typed anywhere in the UI — task cards, the task form's
+due-date field, task detail, objective/lane summaries, the daily-throughput
+chart in Metrics — uses the Spanish **dd/mm/aaaa** format (e.g. `25/12/2026`),
+including when typing a new due date into the form. This is a display/input
+concern only: the on-disk `.md` frontmatter (`due_date`, `created_at`, etc.)
+keeps the ISO `aaaa-mm-dd` format shown above, since that's what stays
+sortable by filename/grep and keeps the files portable.
 
 ## Alerts & board styling
 
@@ -407,13 +461,14 @@ KANBAN_TUI_TASKS_DIR=./tasks poetry run kanban-tui
 | `enter` / `e` | Edit selected task |
 | `v` | View the selected task's full detail + comments (read-only) and add a comment |
 | `f` | Mark the selected task Hecho and immediately open the popup to create the next backlog task in the same lane |
-| `d` | Delete selected task (asks to confirm) |
+| `d` | Archive selected task (asks to confirm) — see [Archiving tasks](#archiving-tasks-d) |
 | `shift+←` / `H` | Move task to the previous column (checks WIP/bloqueo) |
 | `shift+→` / `L` | Move task to the next column (checks WIP/bloqueo) |
-| `c` | Close the active lane — always asks to confirm (not available for Urgencias) |
-| `p` | Pause/unpause the active lane's objective (not available for Urgencias) |
+| `c` | Close the active lane — always asks to confirm |
+| `p` | Pause/unpause the active lane's objective |
 | `s` | Show the active lane's full summary (every task's Resumen + Criterio de aceptación) |
 | `o` | Open the objectives screen (create / pause / unpause / close / reopen / reprioritize lanes) |
+| `R` (shift+r) | Open Recarga, the recurring-tasks panel — see [Recarga](#recarga-shiftr) |
 | `a` | Open the settings panel (tasks folder path + rule parameters) |
 | `m` | Show kanban metrics |
 | `r` | Reload from disk |

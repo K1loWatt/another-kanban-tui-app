@@ -8,7 +8,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
-from ..models import PRIORITY_DEFAULT, ServiceClass, Status, Task
+from ..models import DATE_DISPLAY_FORMAT, PRIORITY_DEFAULT, ServiceClass, Status, Task, format_date, parse_date_es
 from ..settings import BoardSettings
 from ..wip_rules import global_doing_count
 
@@ -98,7 +98,7 @@ class TaskFormScreen(ModalScreen[Task | None]):
 
                 with Horizontal(classes="form-row"):
                     with Vertical(classes="form-col"):
-                        yield Label("Objetivo (no aplica a Expedito)")
+                        yield Label("Objetivo")
                         current_objective = task.objective if task else self.default_objective
                         yield Select(
                             [(name, name) for name in self.objective_names],
@@ -107,11 +107,11 @@ class TaskFormScreen(ModalScreen[Task | None]):
                             allow_blank=True,
                         )
                     with Vertical(classes="form-col"):
-                        yield Label("Fecha límite (AAAA-MM-DD)")
+                        yield Label("Fecha límite (DD/MM/AAAA)")
                         yield Input(
-                            value=task.due_date.isoformat() if task and task.due_date else "",
+                            value=format_date(task.due_date) if task and task.due_date else "",
                             id="f-due-date",
-                            placeholder=date.today().isoformat(),
+                            placeholder=date.today().strftime(DATE_DISPLAY_FORMAT),
                         )
 
                 yield Label("Bloqueada por (mismo objetivo, opcional)")
@@ -185,9 +185,9 @@ class TaskFormScreen(ModalScreen[Task | None]):
         due_date: date | None = None
         if due_raw:
             try:
-                due_date = date.fromisoformat(due_raw)
+                due_date = parse_date_es(due_raw)
             except ValueError:
-                error.update("[red]La fecha límite debe tener el formato AAAA-MM-DD[/red]")
+                error.update("[red]La fecha límite debe tener el formato DD/MM/AAAA[/red]")
                 return
         elif service_class == ServiceClass.FIXED_DATE:
             error.update("[red]Las tareas de clase 'Fecha fija' necesitan una fecha límite[/red]")
@@ -195,12 +195,9 @@ class TaskFormScreen(ModalScreen[Task | None]):
         objective_value = self.query_one("#f-objective", Select).value
         objective = "" if objective_value == Select.NULL else objective_value
 
-        if service_class != ServiceClass.EXPEDITE and not objective:
+        if not objective:
             error.update("[red]Selecciona un objetivo (o crea uno primero con 'o')[/red]")
             return
-
-        if service_class == ServiceClass.EXPEDITE:
-            objective = ""
 
         blocked_by_value = self.query_one("#f-blocked-by", Select).value
         blocked_by = "" if blocked_by_value == Select.NULL else blocked_by_value

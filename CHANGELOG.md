@@ -4,6 +4,45 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.0]
+
+### Added
+
+- **Recarga** (`shift+r`): a new panel, separate from the board, for
+  tracking recurring chores (name, optional description, interval in
+  days, "última vez" done). Stored in its own `recurring.json`,
+  independent of tasks.
+- **🔋 Recarga Energía**: reflects the aggregate state of everything
+  tracked in Recarga as a bold percentage + short bar, colored on a
+  red → yellow → green gradient. Each item contributes 1.0 the day it's
+  done, decaying to 0.0 at its due date, then going negative and growing
+  by a full point per extra day overdue; the percentage is the average
+  across every item, floored at 0%. See [Recarga
+  Energía](README.md#recarga-energ%C3%ADa).
+- The old separate `WIP global` / `Intangibles pendientes` banner and the
+  new Recarga Energía indicator are now one single **stats banner**,
+  centered, on its own subtly-colored background band so it stands out
+  from the rest of the dashboard without being loud. (It went through a
+  vertical bar next to the board — read as a scrollbar — and a wide
+  three-line banner — too big — before landing here as one merged,
+  compact line.)
+- Tasks can now carry an optional "Por qué"-style **archived** state: `d`
+  archives instead of deleting (see Changed below).
+
+### Changed
+
+- **Removed the dedicated Urgencias lane.** Expedite tasks now belong to
+  an objective lane like every other task; their own cross-board `Doing`
+  WIP cap (default 2) is unchanged, just no longer tied to a single lane.
+  Old Expedite tasks without an objective get migrated to the default one
+  on next load, same as any other orphaned task.
+- `d` now **archives** a task instead of deleting its file: the task
+  disappears from the board/metrics/WIP counts but its `.md` file is never
+  removed from disk (sets `archived: true` in its frontmatter instead).
+- Every date shown or typed in the UI (cards, task form, task detail,
+  summaries, Metrics) now uses the Spanish **dd/mm/aaaa** format. On-disk
+  frontmatter dates stay ISO (`aaaa-mm-dd`) — display/input only.
+
 ## [1.1.0]
 
 ### Added

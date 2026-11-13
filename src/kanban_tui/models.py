@@ -84,6 +84,21 @@ def _parse_service_class(meta: dict) -> ServiceClass:
     return ServiceClass.STANDARD
 
 
+DATE_DISPLAY_FORMAT = "%d/%m/%Y"
+DATETIME_DISPLAY_FORMAT = "%d/%m/%Y %H:%M"
+
+
+def format_date(value: date | None) -> str:
+    """Fecha en formato español (dd/mm/aaaa) para mostrar en la interfaz.
+    El almacenamiento en disco (YAML/ISO) no cambia, solo la vista."""
+    return value.strftime(DATE_DISPLAY_FORMAT) if value else ""
+
+
+def parse_date_es(text: str) -> date:
+    """Parsea una fecha escrita en formato español (dd/mm/aaaa)."""
+    return datetime.strptime(text.strip(), DATE_DISPLAY_FORMAT).date()
+
+
 def oneline(text: str, max_len: int = 90) -> str:
     """Collapse a free-form text block into a single truncated line for compact rows."""
     collapsed = " ".join(text.split())
@@ -163,6 +178,7 @@ class Task:
     acceptance_criteria: str = ""
     comments: list[Comment] = field(default_factory=list)
     blocked_by: str = ""
+    archived: bool = False
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -186,6 +202,7 @@ class Task:
             acceptance_criteria=acceptance_criteria,
             comments=comments,
             blocked_by=str(meta.get("blocked_by") or ""),
+            archived=bool(meta.get("archived", False)),
             id=str(meta.get("id") or uuid.uuid4().hex[:8]),
             created_at=_parse_datetime(meta.get("created_at")),
             updated_at=_parse_datetime(meta.get("updated_at")),
@@ -243,6 +260,7 @@ class Task:
             "started_at": self.started_at,
             "completed_at": self.completed_at,
             "blocked_by": self.blocked_by,
+            "archived": self.archived,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

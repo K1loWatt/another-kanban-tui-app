@@ -4,7 +4,7 @@ import logging
 from datetime import date, datetime
 from pathlib import Path
 
-from .models import ServiceClass, Status, Task
+from .models import Status, Task
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,13 @@ def load_all_tasks(tasks_dir: Path) -> list[Task]:
     return tasks
 
 
+def load_active_tasks(tasks_dir: Path) -> list[Task]:
+    """Igual que `load_all_tasks` pero sin las tareas archivadas — lo que
+    usa el tablero y todos sus cálculos (WIP, métricas, bloqueos, etc).
+    Una tarea archivada nunca se borra del disco, solo deja de contar."""
+    return [t for t in load_all_tasks(tasks_dir) if not t.archived]
+
+
 def save_task(tasks_dir: Path, task: Task) -> Task:
     if task.path is None:
         task.path = tasks_dir / task.filename()
@@ -41,13 +48,11 @@ def save_task(tasks_dir: Path, task: Task) -> Task:
 
 
 def migrate_missing_objectives(tasks_dir: Path, tasks: list[Task], default_objective: str) -> None:
-    """Assign the default objective to any pre-existing task that has none.
-
-    Expedite tasks are exempt: they live in the urgency lane regardless of
-    objective and don't need one.
-    """
+    """Assign the default objective to any pre-existing task that has none
+    (including old Expedite tasks from before the dedicated Urgencias lane
+    was removed — every task needs an objective/lane now)."""
     for task in tasks:
-        if not task.objective and task.service_class != ServiceClass.EXPEDITE:
+        if not task.objective:
             task.objective = default_objective
             save_task(tasks_dir, task)
 
@@ -87,9 +92,17 @@ def escalate_due_dates(
     return changed
 
 
-def delete_task(task: Task) -> None:
-    if task.path and task.path.exists():
-        task.path.unlink()
+def archive_task(tasks_dir: Path, task: Task) -> None:
+    """"Elimina" una tarea del tablero sin tocar el archivo: solo la marca
+    como archivada. El .md se queda en disco para siempre; "d" ya no borra
+    nada."""
+    task.archived = True
+    save_task(tasks_dir, task)
+
+
+def unarchive_task(tasks_dir: Path, task: Task) -> None:
+    task.archived = False
+    save_task(tasks_dir, task)
 
 
 def dir_signature(tasks_dir: Path) -> tuple:

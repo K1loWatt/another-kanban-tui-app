@@ -162,7 +162,7 @@ class ObjectivesScreen(ModalScreen[bool]):
             pass
 
     def _unfinished_count(self, objective_name: str) -> int:
-        tasks = storage.load_all_tasks(self.tasks_dir)
+        tasks = storage.load_active_tasks(self.tasks_dir)
         return sum(1 for t in tasks if t.objective == objective_name and t.status != Status.DONE)
 
     @on(Input.Submitted, "#obj-new-name")

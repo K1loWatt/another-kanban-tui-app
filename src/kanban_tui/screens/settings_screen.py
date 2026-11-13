@@ -70,7 +70,7 @@ class SettingsScreen(ModalScreen[Path | None]):
                         yield Label(f"WIP global (por defecto {DEFAULT_GLOBAL_WIP_LIMIT})")
                         yield Input(value=str(s.global_wip_limit), id="set-global-wip")
                     with Vertical(classes="form-col"):
-                        yield Label(f"WIP de Urgencias (por defecto {DEFAULT_EXPEDITE_DOING_LIMIT})")
+                        yield Label(f"WIP de Expedito (por defecto {DEFAULT_EXPEDITE_DOING_LIMIT})")
                         yield Input(value=str(s.expedite_doing_limit), id="set-expedite-limit")
                 yield Label(f"Máximo de objetivos activos a la vez (por defecto {DEFAULT_MAX_ACTIVE_OBJECTIVES})")
                 yield Input(value=str(s.max_active_objectives), id="set-max-objectives")

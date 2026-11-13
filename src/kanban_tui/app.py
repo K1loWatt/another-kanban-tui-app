@@ -9,13 +9,14 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.css.query import NoMatches
 from textual.widgets import Footer, Header, Static
 
-from . import __version__, objectives, storage, wip_rules
+from . import __version__, objectives, recurring, storage, wip_rules
 from .config import get_tasks_dir
 from .models import ServiceClass, Status, Task
 from .screens.confirm import ConfirmScreen
 from .screens.metrics_screen import MetricsScreen
 from .screens.objective_summary_screen import ObjectiveSummaryScreen
 from .screens.objectives_screen import ObjectivesScreen
+from .screens.recurring_screen import RecurringScreen
 from .screens.settings_screen import SettingsScreen
 from .screens.task_detail_screen import TaskDetailScreen
 from .screens.task_form import TaskFormScreen
@@ -23,6 +24,9 @@ from .settings import load_settings
 from .widgets.column import STATUS_TITLES
 from .widgets.lane import STATUS_ORDER, Lane
 from .widgets.task_card import TaskCard
+
+
+STATS_BAR_WIDTH = 20
 
 
 class KanbanApp(App):
@@ -35,7 +39,7 @@ class KanbanApp(App):
         Binding("n", "new_task", "Nueva"),
         Binding("enter,e", "edit_task", "Editar"),
         Binding("v", "view_task", "Ver detalle"),
-        Binding("d", "delete_task", "Eliminar"),
+        Binding("d", "delete_task", "Archivar"),
         Binding("left,h", "focus_left", "Columna", show=True),
         Binding("right,l", "focus_right", "Columna", show=False),
         Binding("up,k", "focus_up", "Arriba", show=False),
@@ -51,6 +55,7 @@ class KanbanApp(App):
         Binding("f", "finish_and_next", "Terminar y crear siguiente"),
         Binding("s", "show_objective_summary", "Resumen"),
         Binding("o", "manage_objectives", "Objetivos"),
+        Binding("R", "show_recurring", "Recarga"),
         Binding("a", "open_settings", "Ajustes"),
         Binding("m", "show_metrics", "Métricas"),
         Binding("r", "reload", "Recargar"),
@@ -67,22 +72,12 @@ class KanbanApp(App):
         self._last_signature: tuple = ()
 
     def compose(self) -> ComposeResult:
-        settings = load_settings(self.tasks_dir)
         yield Header(show_clock=True)
-        with Horizontal(id="top-banner"):
-            yield Static("", id="global-wip-banner")
-            yield Static("", id="intangible-banner")
+        yield Static("", id="stats-banner")
         with Horizontal(id="board-header"):
             for status in STATUS_ORDER:
                 yield Static(STATUS_TITLES[status], classes="board-col-header")
         with VerticalScroll(id="board"):
-            yield Lane(
-                "urgent",
-                "Urgencias",
-                is_urgency=True,
-                wip_limit=settings.expedite_doing_limit,
-                id="lane-urgent",
-            )
             for objective in self._visible_objectives():
                 yield Lane(
                     objective.id,
@@ -135,18 +130,8 @@ class KanbanApp(App):
         return lanes[idx]
 
     async def rebuild_board(self) -> None:
-        settings = load_settings(self.tasks_dir)
         board = self.query_one("#board", VerticalScroll)
         await board.remove_children()
-        await board.mount(
-            Lane(
-                "urgent",
-                "Urgencias",
-                is_urgency=True,
-                wip_limit=settings.expedite_doing_limit,
-                id="lane-urgent",
-            )
-        )
         for objective in self._visible_objectives():
             await board.mount(
                 Lane(
@@ -164,6 +149,23 @@ class KanbanApp(App):
         self.reload_tasks()
         self._refresh_active()
 
+    @staticmethod
+    def _stats_banner_text(
+        doing_global: int, global_wip_limit: int, intangible_debt: int, health: float
+    ) -> str:
+        wip_text = (
+            f"[bold #6272a4]WIP global: {doing_global}/{global_wip_limit}[/]"
+            if doing_global < global_wip_limit
+            else f"[bold #ff5f56]WIP global: {doing_global}/{global_wip_limit} (al límite)[/]"
+        )
+        intangible_text = f"[bold #ffb86c]💡 Intangibles pendientes: {intangible_debt}[/]"
+        color = recurring.health_color(health)
+        pct = round(health * 100)
+        filled = round(health * STATS_BAR_WIDTH)
+        bar = "█" * filled + "░" * (STATS_BAR_WIDTH - filled)
+        health_text = f"🔋 Recarga Energía — [bold {color}]{pct}%[/]  [{color}]{bar}[/]"
+        return f"{wip_text}   ·   {intangible_text}   ·   {health_text}"
+
     def reload_tasks(self, keep_selection: bool = False) -> None:
         selected_id = None
         if keep_selection:
@@ -171,7 +173,7 @@ class KanbanApp(App):
             selected_id = task.id if task else None
 
         settings = load_settings(self.tasks_dir)
-        tasks = storage.load_all_tasks(self.tasks_dir)
+        tasks = storage.load_active_tasks(self.tasks_dir)
         storage.escalate_due_dates(
             self.tasks_dir,
             tasks,
@@ -183,27 +185,17 @@ class KanbanApp(App):
         visible_names = [o.name for o in self._visible_objectives()]
 
         for lane in self.lanes:
-            if lane.is_urgency:
-                lane_tasks = [t for t in tasks if t.service_class == ServiceClass.EXPEDITE]
-            else:
-                lane_tasks = [t for t in tasks if t.objective == lane.title_text]
+            lane_tasks = [t for t in tasks if t.objective == lane.title_text]
             lane.set_tasks(lane_tasks, settings=settings)
 
         if selected_id:
             self.select_task_by_id(selected_id)
 
         doing_global = wip_rules.global_doing_count(tasks, visible_names=visible_names)
-        self.query_one("#global-wip-banner", Static).update(
-            f"WIP global: {doing_global}/{settings.global_wip_limit}"
-            if doing_global < settings.global_wip_limit
-            else f"[bold #ff5f56]WIP global: {doing_global}/{settings.global_wip_limit} (al límite)[/]"
-        )
-
         intangible_debt = wip_rules.intangible_debt(tasks)
-        self.query_one("#intangible-banner", Static).update(
-            f"💡 Intangibles pendientes: {intangible_debt}"
-            if intangible_debt > 0
-            else "💡 Intangibles pendientes: 0"
+        health = recurring.recurring_health(recurring.load_recurring_tasks(self.tasks_dir))
+        self.query_one("#stats-banner", Static).update(
+            self._stats_banner_text(doing_global, settings.global_wip_limit, intangible_debt, health)
         )
 
         self._last_signature = storage.dir_signature(self.tasks_dir)
@@ -274,9 +266,9 @@ class KanbanApp(App):
     def action_new_task(self) -> None:
         lane = self.active_lane
         status = lane.active_column.status
-        default_objective = "" if lane.is_urgency else lane.title_text
+        default_objective = lane.title_text
         objective_names = [o.name for o in self._visible_objectives()]
-        other_tasks = storage.load_all_tasks(self.tasks_dir)
+        other_tasks = storage.load_active_tasks(self.tasks_dir)
         settings = load_settings(self.tasks_dir)
 
         def handle(task: Task | None) -> None:
@@ -304,7 +296,7 @@ class KanbanApp(App):
 
     def edit_task(self, task: Task) -> None:
         objective_names = [o.name for o in self._visible_objectives()]
-        other_tasks = [t for t in storage.load_all_tasks(self.tasks_dir) if t.id != task.id]
+        other_tasks = [t for t in storage.load_active_tasks(self.tasks_dir) if t.id != task.id]
         settings = load_settings(self.tasks_dir)
 
         def handle(updated: Task | None) -> None:
@@ -349,9 +341,9 @@ class KanbanApp(App):
         storage.save_task(self.tasks_dir, task)
         self.reload_tasks()
 
-        default_objective = "" if lane.is_urgency else lane.title_text
+        default_objective = lane.title_text
         objective_names = [o.name for o in self._visible_objectives()]
-        other_tasks = storage.load_all_tasks(self.tasks_dir)
+        other_tasks = storage.load_active_tasks(self.tasks_dir)
         settings = load_settings(self.tasks_dir)
 
         def handle(new_task: Task | None) -> None:
@@ -379,10 +371,17 @@ class KanbanApp(App):
 
         def handle(confirmed: bool) -> None:
             if confirmed:
-                storage.delete_task(task)
+                storage.archive_task(self.tasks_dir, task)
                 self.reload_tasks()
+                self.notify(f"«{task.title}» archivada (el archivo sigue en disco)")
 
-        self.push_screen(ConfirmScreen(f"¿Eliminar '{task.title}'?"), handle)
+        self.push_screen(
+            ConfirmScreen(
+                f"¿Archivar '{task.title}'? Desaparece del tablero pero nunca se borra del disco.",
+                confirm_label="Archivar",
+            ),
+            handle,
+        )
 
     def _move_active_task(self, delta: int) -> None:
         lane = self.active_lane
@@ -396,7 +395,7 @@ class KanbanApp(App):
         new_status = STATUS_ORDER[new_idx]
 
         if new_status == Status.DOING:
-            all_tasks = storage.load_all_tasks(self.tasks_dir)
+            all_tasks = storage.load_active_tasks(self.tasks_dir)
             settings = load_settings(self.tasks_dir)
 
             if task.blocked_by:
@@ -418,7 +417,7 @@ class KanbanApp(App):
                 )
                 if doing_count >= settings.expedite_doing_limit:
                     self.notify(
-                        f"Límite de WIP ({settings.expedite_doing_limit}) alcanzado en Urgencias.",
+                        f"Límite de WIP ({settings.expedite_doing_limit}) alcanzado para tareas Expedito.",
                         severity="error",
                     )
                     return
@@ -467,6 +466,13 @@ class KanbanApp(App):
 
         self.push_screen(ObjectivesScreen(self.tasks_dir), handle)
 
+    def action_show_recurring(self) -> None:
+        def handle(changed: bool) -> None:
+            if changed:
+                self.reload_tasks(keep_selection=True)
+
+        self.push_screen(RecurringScreen(self.tasks_dir), handle)
+
     def action_open_settings(self) -> None:
         def handle(new_tasks_dir: Path | None) -> None:
             if new_tasks_dir is None:
@@ -497,28 +503,22 @@ class KanbanApp(App):
     def action_show_objective_summary(self) -> None:
         lane = self.active_lane
         settings = load_settings(self.tasks_dir)
-        wip_limit = lane.wip_limit if lane.is_urgency else settings.global_wip_limit
         self.push_screen(
             ObjectiveSummaryScreen(
                 lane.title_text,
-                is_urgency=lane.is_urgency,
                 priority=lane.priority,
-                wip_limit=wip_limit,
+                wip_limit=settings.global_wip_limit,
                 tasks=lane.tasks,
             )
         )
 
     def action_close_active_lane(self) -> None:
         lane = self.active_lane
-        if lane.is_urgency:
-            self.notify("El carril de Urgencias no se puede cerrar.", severity="warning")
-            return
         self.close_lane(lane.objective_id)
 
     def action_toggle_pause_lane(self) -> None:
         lane = self.active_lane
-        if lane.is_urgency or lane.objective_id is None:
-            self.notify("El carril de Urgencias no se puede apagar.", severity="warning")
+        if lane.objective_id is None:
             return
         objective = next(
             (o for o in objectives.load_objectives(self.tasks_dir) if o.id == lane.objective_id), None
@@ -550,7 +550,7 @@ class KanbanApp(App):
             return
         unfinished = sum(
             1
-            for t in storage.load_all_tasks(self.tasks_dir)
+            for t in storage.load_active_tasks(self.tasks_dir)
             if t.objective == objective.name and t.status != Status.DONE
         )
 

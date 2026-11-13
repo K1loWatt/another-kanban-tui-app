@@ -58,7 +58,7 @@ class MetricsScreen(ModalScreen[None]):
                 yield Button("Cerrar", id="metrics-done", variant="default")
 
     def on_mount(self) -> None:
-        tasks = storage.load_all_tasks(self.tasks_dir)
+        tasks = storage.load_active_tasks(self.tasks_dir)
         settings = load_settings(self.tasks_dir)
         visible_names = [o.name for o in visible_objectives(load_objectives(self.tasks_dir))]
         body = self.query_one("#metrics-body", VerticalScroll)
@@ -95,7 +95,7 @@ class MetricsScreen(ModalScreen[None]):
         )
         body.mount(
             Static(
-                f"Urgencias (límite {settings.expedite_doing_limit}): "
+                f"Expedito (límite {settings.expedite_doing_limit}): "
                 f"{_bar(doing_urgent, max(settings.expedite_doing_limit, 1), '#ff5f56')}",
                 classes="metrics-row",
             )
@@ -143,7 +143,7 @@ class MetricsScreen(ModalScreen[None]):
         days = [today - timedelta(days=i) for i in range(DAILY_THROUGHPUT_DAYS - 1, -1, -1)]
         counts = [sum(1 for t in tasks if t.completed_at == day) for day in days]
         max_count = max(counts, default=0)
-        labels = [d.strftime("%d/%m") for d in days]
+        labels = [d.strftime("%d/%m/%Y") for d in days]
         return [(label, count, max_count) for label, count in zip(labels, counts)]
 
     @staticmethod
