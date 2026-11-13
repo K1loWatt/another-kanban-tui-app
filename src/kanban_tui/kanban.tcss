@@ -75,10 +75,11 @@ Lane.paused-lane TaskCard.selected {
 }
 
 #stats-banner {
-    height: 1;
+    height: 3;
     width: 1fr;
     background: #323548;
     content-align: center middle;
+    padding: 1 0;
     margin-bottom: 1;
 }
 
