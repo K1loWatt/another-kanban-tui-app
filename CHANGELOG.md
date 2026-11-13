@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.2]
+
+### Changed
+
+- More breathing room around the stats banner: a 1-row gap above it
+  (under the title bar) and a 2-row gap below it (before the column
+  headers), instead of sitting flush against both.
+
 ## [1.2.1]
 
 ### Changed

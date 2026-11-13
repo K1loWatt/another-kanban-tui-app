@@ -80,7 +80,7 @@ Lane.paused-lane TaskCard.selected {
     background: #323548;
     content-align: center middle;
     padding: 1 0;
-    margin-bottom: 1;
+    margin: 1 0 2 0;
 }
 
 .lane-header {
