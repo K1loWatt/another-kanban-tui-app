@@ -10,7 +10,11 @@ permissions:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    # Pinned to an older LTS (not ubuntu-latest) so the binary links against
+    # an older glibc and runs on more target machines — glibc is forward-
+    # compatible, not backward-compatible, so building on a newer distro
+    # than the target fails with "GLIBC_X.YY not found" at runtime.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 

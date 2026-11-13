@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.1]
+
+### Fixed
+
+- `scripts/install.sh` rewritten in POSIX `sh` (no more `[[ ]]`/bashisms),
+  so it no longer errors out under `dash`/`ash`/busybox when invoked as
+  `sh install.sh` instead of `bash install.sh`.
+- Release binary build pinned to the `ubuntu-22.04` GitHub Actions runner
+  instead of `ubuntu-latest`, so the published binary links against an
+  older glibc (2.35) and runs on more target machines — glibc is
+  backward- but not forward-compatible, and building on too new a distro
+  produced a binary that failed with `GLIBC_2.42 not found` on older
+  systems.
+
 ## [1.0.0]
 
 ### Added
