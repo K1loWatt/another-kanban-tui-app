@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.2]
+
+### Fixed
+
+- The `v1.0.1` release was still built on `ubuntu-latest` (the
+  `ubuntu-22.04` pin below landed in the same commit that tagged `v1.0.1`,
+  but that tag had already been pushed from an older commit) and still
+  shipped a binary requiring `GLIBC_2.42`. This release actually contains
+  the pinned workflow.
+
 ## [1.0.1]
 
 ### Fixed
