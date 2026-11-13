@@ -4,6 +4,34 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.0]
+
+### Added
+
+- Each column (Pendientes/En progreso/Hecho) now caps at ~10 tasks tall
+  and scrolls internally beyond that, instead of growing without limit
+  and pushing every other lane off-screen.
+- Each lane now has a bit of bottom padding, so its content doesn't sit
+  flush against the next lane's top border.
+- Objective lanes' top border, plus a very faint matching tint across the
+  whole lane, is now colored on a green → red gradient based on how
+  overdue the lane is for finishing a task, scaled by its own priority
+  (P0 expects a task done daily to stay green, doubling the expected
+  cadence per priority level down to P5 at 32 days). See [Lane freshness
+  color](README.md#lane-freshness-color). The active lane's border
+  renders heavy instead of thin to stay distinguishable regardless of
+  color. Urgencias is explicitly excluded (its border stays neutral).
+- Objectives can now carry an optional **"Por qué"** field (the
+  motivation behind them), set at creation time in the objectives
+  screen (`o`).
+
+### Changed
+
+- Urgencias' border no longer turns red — it was the only lane colored
+  by something other than the new freshness gradient, which was
+  confusing next to it. It now stays neutral, same as before any of this
+  coloring existed; only its border thickness still marks it active.
+
 ## [1.0.2]
 
 ### Fixed

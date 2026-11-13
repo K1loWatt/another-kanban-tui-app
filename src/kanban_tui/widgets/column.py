@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from textual.containers import Vertical
+from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -17,11 +17,14 @@ STATUS_TITLES = {
 }
 
 
-class Column(Vertical):
+class Column(VerticalScroll):
     """Una columna del tablero (Pendientes / En progreso / Hecho) dentro de un carril.
 
     Column titles only appear once, in the dashboard's pinned header row
     (see `#board-header` in app.py) — this widget renders just the task rows.
+    Capada en altura (ver `max-height` en kanban.tcss, ~10 tareas) para que
+    un carril con muchas tareas no ocupe toda la pantalla; más allá de eso
+    hace scroll internamente, independiente del resto del tablero.
     """
 
     is_active: reactive[bool] = reactive(False)

@@ -59,6 +59,7 @@ class ObjectivesScreen(ModalScreen[bool]):
                 )
                 yield Button("Añadir", id="obj-new-btn", variant="success")
             yield Input(placeholder="Descripción del objetivo *", id="obj-new-description")
+            yield Input(placeholder="Por qué (opcional)", id="obj-new-reason")
             yield Static("", id="objectives-error")
             with Horizontal(id="objectives-actions"):
                 yield Button("Cerrar ventana", id="obj-done", variant="default")
@@ -130,6 +131,13 @@ class ObjectivesScreen(ModalScreen[bool]):
                 )
             description = oneline(objective.description) if objective.description else "(sin descripción)"
             row.mount(Static(f"   {description}", classes="objective-row-description"))
+            if objective.reason:
+                row.mount(
+                    Static(
+                        f"   Por qué: {oneline(objective.reason)}",
+                        classes="objective-row-reason",
+                    )
+                )
         self._highlight_selected(move_focus=self._rows_focused)
 
     def _highlight_selected(self, move_focus: bool = True) -> None:
@@ -159,13 +167,16 @@ class ObjectivesScreen(ModalScreen[bool]):
 
     @on(Input.Submitted, "#obj-new-name")
     @on(Input.Submitted, "#obj-new-description")
+    @on(Input.Submitted, "#obj-new-reason")
     @on(Button.Pressed, "#obj-new-btn")
     async def add_new(self) -> None:
         error = self.query_one("#objectives-error", Static)
         name_input = self.query_one("#obj-new-name", Input)
         description_input = self.query_one("#obj-new-description", Input)
+        reason_input = self.query_one("#obj-new-reason", Input)
         name = name_input.value.strip()
         description = description_input.value.strip()
+        reason = reason_input.value.strip()
         if not name:
             error.update("[red]Escribe un nombre para el objetivo[/red]")
             return
@@ -174,13 +185,21 @@ class ObjectivesScreen(ModalScreen[bool]):
             return
         priority = self.query_one("#obj-new-priority", Select).value
         try:
-            add_objective(self.tasks_dir, name, description, priority=priority, max_active=self._max_active)
+            add_objective(
+                self.tasks_dir,
+                name,
+                description,
+                reason=reason,
+                priority=priority,
+                max_active=self._max_active,
+            )
         except TooManyActiveObjectives as exc:
             error.update(f"[red]{exc}[/red]")
             return
         error.update("")
         name_input.value = ""
         description_input.value = ""
+        reason_input.value = ""
         self.changed = True
         await self.refresh_rows()
 

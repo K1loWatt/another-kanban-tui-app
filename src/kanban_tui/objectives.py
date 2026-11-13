@@ -45,6 +45,7 @@ def _parse_date(value) -> date | None:
 class Objective:
     name: str
     description: str = ""
+    reason: str = ""  # "Por qué": la motivación detrás del objetivo (opcional)
     status: str = "active"  # "active" | "paused" | "closed"
     priority: int = PRIORITY_DEFAULT  # 0 (highest) .. 5 (lowest)
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
@@ -73,6 +74,7 @@ class Objective:
             "id": self.id,
             "name": self.name,
             "description": self.description,
+            "reason": self.reason,
             "status": self.status,
             "priority": self.priority,
             "created_at": self.created_at.isoformat(),
@@ -85,6 +87,7 @@ class Objective:
             id=str(data.get("id") or uuid.uuid4().hex[:8]),
             name=str(data.get("name") or "Objetivo"),
             description=str(data.get("description") or ""),
+            reason=str(data.get("reason") or ""),
             status=str(data.get("status") or "active"),
             priority=_clamp_priority(int(data.get("priority", PRIORITY_DEFAULT))),
             created_at=_parse_date(data.get("created_at")) or date.today(),
@@ -144,6 +147,7 @@ def add_objective(
     tasks_dir: Path,
     name: str,
     description: str,
+    reason: str = "",
     priority: int = PRIORITY_DEFAULT,
     max_active: int = MAX_ACTIVE_OBJECTIVES,
 ) -> Objective:
@@ -153,7 +157,10 @@ def add_objective(
             f"Ya hay {max_active} objetivos activos. Cierra uno antes de crear otro."
         )
     objective = Objective(
-        name=name.strip(), description=description.strip(), priority=_clamp_priority(priority)
+        name=name.strip(),
+        description=description.strip(),
+        reason=reason.strip(),
+        priority=_clamp_priority(priority),
     )
     objectives.append(objective)
     save_objectives(tasks_dir, objectives)

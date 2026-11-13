@@ -10,10 +10,12 @@ development notes.
 
 The board renders as one big minimalist table rather than boxed cards: each
 task is a single compact row (icon, title, priority, due date, labels — like
-an email client's inbox list), with no per-column or per-lane scrolling.
-Every lane and column grows (height) to fit its tallest column/lane
-automatically as the backlog grows; the whole board scrolls as one page.
-Color scheme is [Dracula](https://draculatheme.com/) (scrollbars included).
+an email client's inbox list). Every column (Pendientes/En progreso/Hecho)
+grows to fit its tasks up to **10** (30 rows, since each card is 3 lines
+tall) and scrolls internally beyond that, so a single overloaded lane can't
+push every other lane off-screen; the whole board also scrolls as one page
+on top of that. Color scheme is [Dracula](https://draculatheme.com/)
+(scrollbars included).
 
 Every popup (task form, objectives, settings, metrics, summary, task detail)
 opens almost full-screen (94% of the terminal) so there's room to work
@@ -24,7 +26,7 @@ The task form's Descripción and Criterio de aceptación fields are a full
 **10 lines** each (there's real writing room to describe acceptance
 criteria properly).
 
-The app's title bar shows the installed version (`Tablero Kanban v1.0.2`),
+The app's title bar shows the installed version (`Tablero Kanban v1.1.0`),
 so you can always tell which build you're on at a glance. See
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -83,11 +85,34 @@ The board is organized in horizontal **lanes**:
 Every objective requires a **description** when it's created (mandatory,
 just like a task's acceptance criteria) and it's shown right on the
 dashboard, as a muted line under the lane's title — no need to open the
-objectives screen to remember what a lane is for.
+objectives screen to remember what a lane is for. An objective can also
+carry an optional **"Por qué"** (the motivation behind it) — set once at
+creation time in the objectives screen (`o`); it's shown there under the
+description but doesn't clutter the board itself.
 
 Lanes are sorted by **objective priority** (0 = highest, shown first right
 under Urgencias), then by creation date. Objective priority is independent
 from each task's own `priority` field.
+
+### Lane freshness color
+
+Each objective lane's top border — plus a very faint matching tint across
+the whole lane's background — is colored on a **green → red gradient**
+reflecting how overdue it is for finishing a task, scaled by its own
+priority: higher-priority lanes need a task done more often to stay green.
+Concretely, every priority level doubles the expected cadence versus the
+one above it — P0 needs a task Hecho **daily** to stay green, P1 every 2
+days, P2 every 4, P3 every 8, P4 every 16, P5 every 32 — and both the
+border and the background tint smoothly interpolate from green to red as
+the days since the lane's last completed task (or, if it has none yet,
+since the objective was created) go from 0 to that cadence; past the
+cadence it just stays solid red. The active lane's border also renders
+**heavy** instead of thin so you can still tell which one you're on
+regardless of its color. This is purely visual — it doesn't block or gate
+anything, unlike the WIP limit. Urgencias and paused lanes are unaffected:
+Urgencias never carries this color at all (its border is always neutral,
+only its thickness changes when it's the active lane), and a paused lane
+stays all grey, as always.
 
 Each lane has its own `Backlog` → `Doing` → `Done` columns. A task's column
 is just a `status` field inside its markdown frontmatter — the file never

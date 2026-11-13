@@ -40,29 +40,15 @@ Footer {
 Lane {
     height: auto;
     margin-bottom: 1;
-    padding: 0 1;
+    padding: 0 1 1 1;
     border-top: solid #44475a;
 }
 
-Lane.active-lane {
-    border-top: solid #bd93f9;
-}
-
-Lane.urgency-lane {
-    border-top: solid #6e2a2a;
-}
-
-Lane.urgency-lane.active-lane {
-    border-top: solid #ff5555;
-}
-
-Lane.paused-lane {
-    border-top: solid #4a4a4a;
-}
-
-Lane.paused-lane.active-lane {
-    border-top: solid #8a8a8a;
-}
+/* El color (y, para carriles de objetivo, el grosor activo/inactivo) del
+   border-top se calcula en Python — ver Lane._refresh_border en lane.py —
+   según la frescura del carril (verde -> rojo) o su estado (urgencias /
+   apagado). La regla de arriba es solo el valor por defecto antes del
+   primer render. */
 
 /* Objetivo apagado: todo en gris, pero sigue editable con normalidad. */
 Lane.paused-lane .lane-title,
@@ -130,6 +116,7 @@ Lane.paused-lane TaskCard.selected {
 Column {
     width: 1fr;
     height: auto;
+    max-height: 30;
     padding: 0 1;
 }
 
@@ -381,6 +368,14 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen {
 .objective-row-description {
     height: 1;
     color: #6272a4;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.objective-row-reason {
+    height: 1;
+    color: #6272a4;
+    text-style: italic;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }

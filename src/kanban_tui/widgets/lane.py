@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
+
 from rich.markup import escape
 from textual.app import ComposeResult
+from textual.color import Color
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.reactive import reactive
@@ -9,9 +12,21 @@ from textual.widgets import Static
 
 from ..models import Status, Task, oneline
 from ..settings import BoardSettings
+from ..wip_rules import lane_freshness
 from .column import Column
 
 STATUS_ORDER = [Status.BACKLOG, Status.DOING, Status.DONE]
+
+# Degradado verde -> rojo según qué tan "fresco" está el carril (ver lane_freshness).
+_FRESH_GREEN = (80, 250, 123)  # #50fa7b
+_STALE_RED = (255, 85, 85)  # #ff5555
+
+
+def _gradient_color(ratio: float) -> str:
+    r = round(_FRESH_GREEN[0] + (_STALE_RED[0] - _FRESH_GREEN[0]) * ratio)
+    g = round(_FRESH_GREEN[1] + (_STALE_RED[1] - _FRESH_GREEN[1]) * ratio)
+    b = round(_FRESH_GREEN[2] + (_STALE_RED[2] - _FRESH_GREEN[2]) * ratio)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 class Lane(Vertical):
@@ -30,6 +45,7 @@ class Lane(Vertical):
         description: str = "",
         wip_limit: int | None = None,
         is_paused: bool = False,
+        created_at: date | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -41,6 +57,7 @@ class Lane(Vertical):
         self.description = description
         self.wip_limit = wip_limit
         self.is_paused = is_paused
+        self.created_at = created_at
         self.active_column_index = 0
         self.tasks: list[Task] = []
         self.add_class("urgency-lane" if is_urgency else "objective-lane")
@@ -89,6 +106,22 @@ class Lane(Vertical):
         except NoMatches:
             pass
 
+    def _refresh_border(self) -> None:
+        weight = "heavy" if self.is_active else "solid"
+        if self.is_urgency:
+            # Urgencias no lleva color de frescura: siempre neutro, solo
+            # cambia el grosor del borde para marcar que está activa.
+            self.styles.border_top = (weight, "#44475a")
+            return
+        if self.is_paused:
+            color = "#8a8a8a" if self.is_active else "#4a4a4a"
+            self.styles.border_top = ("solid", color)
+            return
+        ratio = lane_freshness(self.tasks, self.priority or 0, self.created_at)
+        color = _gradient_color(ratio)
+        self.styles.border_top = (weight, color)
+        self.styles.background = Color.parse(color).with_alpha(0.08)
+
     @property
     def columns(self) -> list[Column]:
         return [self.query_one(f"#column-{self.lane_key}-{s.value}", Column) for s in STATUS_ORDER]
@@ -110,6 +143,7 @@ class Lane(Vertical):
             column.set_tasks(by_status[column.status], id_to_task, settings)
         self._refresh_header()
         self._refresh_active_column()
+        self._refresh_border()
 
     def _refresh_active_column(self) -> None:
         for i, column in enumerate(self.columns):
@@ -118,6 +152,7 @@ class Lane(Vertical):
     def watch_is_active(self, value: bool) -> None:
         self.set_class(value, "active-lane")
         self._refresh_active_column()
+        self._refresh_border()
 
     def focus_left(self) -> None:
         self.active_column_index = max(0, self.active_column_index - 1)

@@ -91,6 +91,7 @@ class KanbanApp(App):
                     priority=objective.priority,
                     description=objective.description,
                     is_paused=objective.is_paused,
+                    created_at=objective.created_at,
                     id=f"lane-{objective.id}",
                 )
         yield Footer()
@@ -155,6 +156,7 @@ class KanbanApp(App):
                     priority=objective.priority,
                     description=objective.description,
                     is_paused=objective.is_paused,
+                    created_at=objective.created_at,
                     id=f"lane-{objective.id}",
                 )
             )
