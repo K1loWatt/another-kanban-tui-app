@@ -499,3 +499,7 @@ This installs dependencies, builds a wheel/sdist with Poetry
 a standalone single-file dev binary at `dist/kanban-tui-dev` that can be
 copied to another machine and run directly, without installing Python or
 Poetry there.
+
+## License
+
+[MIT](LICENSE)
