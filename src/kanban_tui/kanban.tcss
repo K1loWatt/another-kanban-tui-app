@@ -58,6 +58,7 @@ Lane.paused-lane .lane-description {
 
 Lane.paused-lane TaskCard {
     color: #6b6b6b;
+    border: round #3a3a3a;
     border-left: thick #4a4a4a;
     background: transparent;
     text-style: none;
@@ -72,6 +73,7 @@ Lane.paused-lane TaskCard.selected {
     background: #333333;
     color: #cfcfcf;
     text-style: bold;
+    border: heavy #cfcfcf;
 }
 
 #stats-banner {
@@ -105,6 +107,8 @@ Lane.paused-lane TaskCard.selected {
     height: auto;
 }
 
+/* Cada tarjeta mide 5 filas (3 de contenido + borde arriba/abajo), así que
+   30 filas = ~6 tareas visibles antes de que la columna haga scroll. */
 Column {
     width: 1fr;
     height: auto;
@@ -114,18 +118,26 @@ Column {
 
 .empty-hint {
     color: #6272a4;
-    height: 1;
+    height: 3;
     padding: 0 1;
+    border: round #3a3d4e;
 }
 
+.empty-hint.selected {
+    color: #ff79c6;
+    border: heavy #ff79c6;
+}
+
+/* Borde suave en cada tarjeta para separar visualmente una tarea de otra. */
 TaskCard {
     width: 1fr;
-    height: 3;
+    height: 5;
     padding: 0 1;
     background: transparent;
     color: #f8f8f2;
     text-wrap: nowrap;
     text-overflow: ellipsis;
+    border: round #44475a;
 }
 
 /* Bloqueada por otra tarea del mismo objetivo: roja fija, no se puede pillar */
@@ -173,10 +185,19 @@ TaskCard.alert-low {
     border-left: thick #50fa7b;
 }
 
+/* Tarea seleccionada: borde rosa grueso en tres lados; el lado izquierdo
+   conserva el color de alerta (si lo hay) para no perder esa información. */
 TaskCard.selected {
     background: #44475a;
     color: #ff79c6;
     text-style: bold;
+    border-top: heavy #ff79c6;
+    border-right: heavy #ff79c6;
+    border-bottom: heavy #ff79c6;
+}
+
+TaskCard.selected.alert-normal {
+    border-left: heavy #ff79c6;
 }
 
 TaskCard.selected.blink-active {

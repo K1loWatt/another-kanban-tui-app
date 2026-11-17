@@ -46,7 +46,7 @@ class Objective:
     name: str
     description: str = ""
     reason: str = ""  # "Por qué": la motivación detrás del objetivo (opcional)
-    status: str = "active"  # "active" | "paused" | "closed"
+    status: str = "active"  # "active" | "paused" | "closed" | "deleted"
     priority: int = PRIORITY_DEFAULT  # 0 (highest) .. 5 (lowest)
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     created_at: date = field(default_factory=date.today)
@@ -63,6 +63,10 @@ class Objective:
     @property
     def is_closed(self) -> bool:
         return self.status == "closed"
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.status == "deleted"
 
     @property
     def is_visible(self) -> bool:
@@ -182,6 +186,21 @@ def close_objective(tasks_dir: Path, objective_id: str) -> None:
         if objective.id == objective_id:
             objective.status = "closed"
             objective.closed_at = date.today()
+            break
+    save_objectives(tasks_dir, objectives)
+
+
+def delete_objective(tasks_dir: Path, objective_id: str) -> None:
+    """"Borra" un objetivo: desaparece del tablero y de la pantalla de
+    objetivos, pero no se toca nada en disco — ni los .md de sus tareas ni
+    su entrada en objectives.json, que solo queda marcada como "deleted"
+    (se puede recuperar editando ese campo a mano)."""
+    objectives = load_objectives(tasks_dir)
+    for objective in objectives:
+        if objective.id == objective_id:
+            objective.status = "deleted"
+            if objective.closed_at is None:
+                objective.closed_at = date.today()
             break
     save_objectives(tasks_dir, objectives)
 

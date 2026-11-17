@@ -22,7 +22,7 @@ class Column(VerticalScroll):
 
     Column titles only appear once, in the dashboard's pinned header row
     (see `#board-header` in app.py) — this widget renders just the task rows.
-    Capada en altura (ver `max-height` en kanban.tcss, ~10 tareas) para que
+    Capada en altura (ver `max-height` en kanban.tcss, ~6 tareas) para que
     un carril con muchas tareas no ocupe toda la pantalla; más allá de eso
     hace scroll internamente, independiente del resto del tablero.
     """
@@ -79,7 +79,7 @@ class Column(VerticalScroll):
                     )
                 )
         else:
-            self.mount(Static("  Sin tareas", classes="empty-hint"))
+            self.mount(Static("Sin tareas", classes="empty-hint"))
 
         if self.tasks:
             self.selected_index = max(0, min(self.selected_index, len(self.tasks) - 1))
@@ -98,6 +98,12 @@ class Column(VerticalScroll):
         cards = list(self.query(TaskCard))
         for i, card in enumerate(cards):
             card.selected = self.is_active and i == self.selected_index
+        # Columna vacía: el hint "Sin tareas" hace de cursor para que la
+        # selección nunca se pierda de vista.
+        for hint in self.query(".empty-hint"):
+            hint.set_class(self.is_active, "selected")
+            if self.is_active:
+                hint.scroll_visible()
         if self.is_active and cards:
             cards[self.selected_index].scroll_visible()
 

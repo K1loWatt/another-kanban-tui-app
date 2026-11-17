@@ -17,6 +17,7 @@ from ..objectives import (
     TooManyActiveObjectives,
     add_objective,
     close_objective,
+    delete_objective,
     load_objectives,
     pause_objective,
     reopen_objective,
@@ -47,7 +48,7 @@ class ObjectivesScreen(ModalScreen[bool]):
                 f"Objetivos (máx. {self._max_active} activos a la vez)", id="objectives-title"
             )
             yield Static(
-                "↑/↓ seleccionar fila · c cerrar · r reabrir · p apagar/encender · "
+                "↑/↓ seleccionar fila · c cerrar · r reabrir · p apagar/encender · b borrar · "
                 "+/- prioridad · enter en Añadir crea uno",
                 id="objectives-hint",
             )
@@ -71,7 +72,7 @@ class ObjectivesScreen(ModalScreen[bool]):
     def _load_sorted(self) -> list[Objective]:
         status_rank = {"active": 0, "paused": 1, "closed": 2}
         return sorted(
-            load_objectives(self.tasks_dir),
+            (o for o in load_objectives(self.tasks_dir) if not o.is_deleted),
             key=lambda o: (status_rank.get(o.status, 2), o.priority, o.created_at),
         )
 
@@ -129,6 +130,14 @@ class ObjectivesScreen(ModalScreen[bool]):
                 header_row.mount(
                     Button("Reabrir", id=f"obj-reopen-{objective.id}", classes="objective-row-btn")
                 )
+            header_row.mount(
+                Button(
+                    "Borrar",
+                    id=f"obj-delete-{objective.id}",
+                    classes="objective-row-btn",
+                    variant="error",
+                )
+            )
             description = oneline(objective.description) if objective.description else "(sin descripción)"
             row.mount(Static(f"   {description}", classes="objective-row-description"))
             if objective.reason:
@@ -234,6 +243,30 @@ class ObjectivesScreen(ModalScreen[bool]):
             handle_confirm,
         )
 
+    def _delete_objective(self, objective: Objective) -> None:
+        self._rows_focused = True
+        tasks = [t for t in storage.load_all_tasks(self.tasks_dir) if t.objective == objective.name]
+
+        def handle_confirm(confirmed: bool) -> None:
+            if confirmed:
+                delete_objective(self.tasks_dir, objective.id)
+                self.changed = True
+                self.run_worker(self.refresh_rows(), exclusive=False)
+
+        extra = (
+            f" Sus {len(tasks)} tarea(s) dejarán de verse, pero sus archivos se quedan en disco."
+            if tasks
+            else ""
+        )
+        self.app.push_screen(
+            ConfirmScreen(
+                f"¿Borrar el objetivo «{objective.name}»? Desaparece del tablero y de esta "
+                f"lista; no se borra nada en disco.{extra}",
+                confirm_label="Borrar",
+            ),
+            handle_confirm,
+        )
+
     async def _reopen_objective(self, objective: Objective) -> None:
         self._rows_focused = True
         error = self.query_one("#objectives-error", Static)
@@ -279,6 +312,10 @@ class ObjectivesScreen(ModalScreen[bool]):
             objective = next((o for o in self.rows if o.id == button_id.removeprefix("obj-close-")), None)
             if objective is not None:
                 self._close_objective(objective)
+        elif button_id.startswith("obj-delete-"):
+            objective = next((o for o in self.rows if o.id == button_id.removeprefix("obj-delete-")), None)
+            if objective is not None:
+                self._delete_objective(objective)
         elif button_id.startswith("obj-reopen-"):
             objective = next((o for o in self.rows if o.id == button_id.removeprefix("obj-reopen-")), None)
             if objective is not None:
@@ -320,6 +357,9 @@ class ObjectivesScreen(ModalScreen[bool]):
         if key == "c" and not objective.is_closed:
             event.stop()
             self._close_objective(objective)
+        elif key in ("b", "delete") and not isinstance(self.focused, Input):
+            event.stop()
+            self._delete_objective(objective)
         elif key == "r" and objective.is_closed:
             event.stop()
             await self._reopen_objective(objective)

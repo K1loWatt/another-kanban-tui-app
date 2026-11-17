@@ -48,8 +48,8 @@ class KanbanApp(App):
         Binding("shift+right,L", "move_right", "Mover →"),
         Binding("shift+tab", "prev_lane", "Carril ↑", priority=True),
         Binding("tab", "next_lane", "Carril ↓", priority=True),
-        Binding("pageup", "jump_up", "Saltar ↑3", show=False, priority=True),
-        Binding("pagedown", "jump_down", "Saltar ↓3", show=False, priority=True),
+        Binding("pageup", "jump_up", "Tarea anterior", show=False, priority=True),
+        Binding("pagedown", "jump_down", "Tarea siguiente", show=False, priority=True),
         Binding("c", "close_active_lane", "Cerrar carril"),
         Binding("p", "toggle_pause_lane", "Apagar/Encender"),
         Binding("f", "finish_and_next", "Terminar y crear siguiente"),
@@ -118,6 +118,22 @@ class KanbanApp(App):
         default_name = active[0].name if active else objectives.DEFAULT_OBJECTIVE_NAME
         tasks = storage.load_all_tasks(self.tasks_dir)
         storage.migrate_missing_objectives(self.tasks_dir, tasks, default_name)
+
+    # Acciones que dependen de que exista al menos un carril en el tablero.
+    _LANE_ACTIONS = {
+        "new_task", "edit_task", "view_task", "delete_task", "focus_left", "focus_right",
+        "focus_up", "focus_down", "move_left", "move_right", "close_active_lane",
+        "toggle_pause_lane", "finish_and_next", "show_objective_summary",
+        "jump_up", "jump_down", "prev_lane", "next_lane",
+    }
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        # Sin carriles (todos los objetivos cerrados o borrados) estas acciones
+        # no tienen sobre qué actuar. Con un popup abierto, jump/next/prev
+        # siguen funcionando (scroll / cambio de campo).
+        if action in self._LANE_ACTIONS and not self._modal_active and not self.lanes:
+            return False
+        return True
 
     @property
     def lanes(self) -> list[Lane]:
@@ -225,13 +241,41 @@ class KanbanApp(App):
         if self._modal_active:
             self._scroll_modal_body(-1)
             return
-        self.active_lane.move_selection(-3)
+        self._step_through_board(-1)
 
     def action_jump_down(self) -> None:
         if self._modal_active:
             self._scroll_modal_body(1)
             return
-        self.active_lane.move_selection(3)
+        self._step_through_board(1)
+
+    def _step_through_board(self, delta: int) -> None:
+        """Avanza la selección de una en una tarea, sin saltarse ninguna ni
+        dar la vuelta: al llegar al final (o principio) de la columna sigue en
+        la misma columna del siguiente (o anterior) carril que tenga tareas.
+        En el extremo del tablero se queda quieta."""
+        lanes = self.lanes
+        if not lanes:
+            return
+        lane = self.active_lane
+        column = lane.active_column
+        if column.tasks and 0 <= column.selected_index + delta < len(column.tasks):
+            column.move_selection(delta)
+            return
+
+        col_index = lane.active_column_index
+        idx = self.active_lane_index + delta
+        while 0 <= idx < len(lanes):
+            target_lane = lanes[idx]
+            target = target_lane.columns[col_index]
+            if target.tasks:
+                target_lane.active_column_index = col_index
+                target.selected_index = 0 if delta > 0 else len(target.tasks) - 1
+                self.active_lane_index = idx
+                self._refresh_active()
+                target.refresh_selection()
+                return
+            idx += delta
 
     def action_prev_lane(self) -> None:
         if self._modal_active:

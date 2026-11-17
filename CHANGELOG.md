@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.0]
+
+### Added
+
+- Delete objectives (`b` / `supr` or the Borrar button in the objectives
+  window). The objective disappears from the board and from the list, but
+  nothing is removed from disk: task files are untouched and the entry
+  stays in `objectives.json` with `"status": "deleted"`.
+- Every task card has a soft rounded border; the selected one gets a thick
+  pink border, and so does the "Sin tareas" placeholder when the cursor is
+  in an empty column.
+
+### Changed
+
+- `pageup` / `pagedown` now step one task at a time without skipping any,
+  continuing into the same column of the next/previous lane with tasks,
+  and stopping (no wrap-around) at the ends of the board.
+- Columns show ~6 tasks before scrolling (cards are now 5 rows tall
+  including the border).
+
+### Fixed
+
+- No more crash when pressing board keys after every objective has been
+  closed or deleted.
+
 ## [1.2.2]
 
 ### Changed

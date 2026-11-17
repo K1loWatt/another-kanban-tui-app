@@ -11,11 +11,16 @@ development notes.
 The board renders as one big minimalist table rather than boxed cards: each
 task is a single compact row (icon, title, priority, due date, labels — like
 an email client's inbox list). Every column (Pendientes/En progreso/Hecho)
-grows to fit its tasks up to **10** (30 rows, since each card is 3 lines
-tall) and scrolls internally beyond that, so a single overloaded lane can't
+grows to fit its tasks up to **6** (30 rows, since each card is 3 lines of
+content plus its border) and scrolls internally beyond that, so a single overloaded lane can't
 push every other lane off-screen; the whole board also scrolls as one page
 on top of that. Color scheme is [Dracula](https://draculatheme.com/)
 (scrollbars included).
+
+Every task card has a soft rounded border so neighbouring tasks are easy
+to tell apart. The selected task gets a thick pink border (its left edge
+keeps the alert color, if any); in an empty column the "Sin tareas" placeholder
+gets that pink border instead, so the cursor never gets lost.
 
 Every popup (task form, objectives, settings, metrics, summary, task detail)
 opens almost full-screen (94% of the terminal) so there's room to work
@@ -26,7 +31,7 @@ The task form's Descripción and Criterio de aceptación fields are a full
 **10 lines** each (there's real writing room to describe acceptance
 criteria properly).
 
-The app's title bar shows the installed version (`Tablero Kanban v1.2.2`),
+The app's title bar shows the installed version (`Tablero Kanban v1.3.0`),
 so you can always tell which build you're on at a glance. See
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -77,7 +82,12 @@ Expedite ones, belongs to an objective lane like any other:
   `o` to manage them: create, pause/unpause, close, reopen, reprioritize —
   see [Keybindings](#keybindings)). Closing a lane archives its objective and
   hides it from the board entirely; its tasks stay on disk and are visible
-  again if the objective is reopened.
+  again if the objective is reopened. An objective can also be **deleted**
+  (`b` / `supr` or the Borrar button in the objectives window): it disappears
+  from both the board and the objectives list, but nothing is removed from
+  disk — its task `.md` files are untouched and its entry stays in
+  `objectives.json` with `"status": "deleted"` (edit that back to `"active"`
+  to recover it).
 - An objective can also be **paused** (apagado) instead of closed — press
   `p` on the board, or use the Apagar/Encender button in the objectives
   screen. A paused objective keeps its lane on the board (pushed to the
@@ -454,7 +464,7 @@ KANBAN_TUI_TASKS_DIR=./tasks poetry run kanban-tui
 |---|---|
 | `←/h` `→/l` | Switch column within the active lane |
 | `↑/k` `↓/j` | Move selection within a column, one task at a time |
-| `pageup` / `pagedown` | Jump the selection 3 tasks at a time within a column (scrolls a popup's body instead, if one is open) |
+| `pageup` / `pagedown` | Step to the previous / next task one at a time without skipping any: past the end of the column it continues in the same column of the next lane that has tasks, and stops at the ends of the board (scrolls a popup's body instead, if one is open) |
 | `tab` | Switch to the next lane (moves focus to the next field instead, if a popup is open) |
 | `shift+tab` | Switch to the previous lane (moves focus to the previous field instead, if a popup is open) |
 | `n` | New task (created in the active lane/column) |
@@ -483,6 +493,7 @@ Clicking a card also selects and opens it for editing.
 | `↑` / `↓` | Select a row in the objectives list |
 | `c` | Close the selected objective (active or paused) — always asks to confirm |
 | `r` | Reopen the selected (closed) objective |
+| `b` / `supr` | Delete the selected objective (hidden everywhere, nothing removed from disk) — always asks to confirm |
 | `p` | Pause the selected active objective, or unpause the selected paused one |
 | `+` / `-` | Raise / lower the selected objective's priority |
 | `enter` (while typing a name) | Create the new objective |
