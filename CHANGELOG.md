@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.0]
+
+### Changed
+
+- F12 panel: sorted by objective priority, then task priority. Type and
+  labels sit in a box at the right end of each row, apart from the title.
+  `enter` opens the task (same as `d`).
+- The active lane's horizontal line is no longer highlighted; every lane
+  separator looks the same.
+- The freshness meter next to the lane name is followed by the number of
+  completed tasks (`▕██████░░▏ 4 completadas`) instead of fresco / tibio /
+  frío.
+
 ## [1.5.0]
 
 ### Added

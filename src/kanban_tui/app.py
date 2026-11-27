@@ -476,7 +476,16 @@ class KanbanApp(App):
             if comments_changed:
                 self.reload_tasks(keep_selection=True)
 
-        self.push_screen(WipScreen(doing, self.tasks_dir, on_done=self.mark_task_done), handle)
+        objective_priority = {lane.title_text: lane.priority or 0 for lane in self.lanes}
+        self.push_screen(
+            WipScreen(
+                doing,
+                self.tasks_dir,
+                on_done=self.mark_task_done,
+                objective_priority=objective_priority,
+            ),
+            handle,
+        )
 
     def action_delete_task(self) -> None:
         task = self.active_lane.get_selected_task()

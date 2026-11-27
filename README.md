@@ -47,7 +47,7 @@ The task form's Descripción and Criterio de aceptación fields are a full
 **10 lines** each (there's real writing room to describe acceptance
 criteria properly).
 
-The app's title bar shows the installed version (`Tablero Kanban v1.5.0`),
+The app's title bar shows the installed version (`Tablero Kanban v1.6.0`),
 so you can always tell which build you're on at a glance. See
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -56,10 +56,11 @@ pinned header row at the top of the dashboard — they aren't repeated per
 lane. Two **continuous vertical lines** split the three columns from the
 header row to the bottom of the board, crossing every lane, so the
 separation never breaks between objectives. A horizontal rule separates
-one lane from the next (heavy for the active one). Each lane's title row is
+one lane from the next (the same for every lane; the active one is
+already obvious because it's the only one expanded). Each lane's title row is
 split into the same three cells: the name with its freshness meter,
 priority and backlog count under Pendientes, `Prog N` under En progreso and
-`Hecho N` under Hecho (e.g. `General ▕██████░░▏ fresco · P3 · Pend 2 │
+`Hecho N` under Hecho (e.g. `General ▕██████░░▏ 4 completadas · P3 · Pend 2 │
 Prog 1 │ Hecho 4`). A paused lane shows `(apagado)` instead of the meter. Right under the
 header, a single centered stats banner — on a subtly different background
 so it stands out from the rest of the dashboard without being loud — rolls
@@ -122,17 +123,17 @@ by creation date. Objective priority is independent from each task's own
 
 ### Lane freshness meter
 
-Next to each objective's name there's a block meter, `▕████████▏ fresco`,
+Next to each objective's name there's a block meter followed by how many
+tasks the lane has completed, `▕████████▏ 4 completadas`. The meter
 that shows how overdue the lane is for finishing a task, scaled by its own
 priority: higher-priority lanes need a task done more often to stay full.
 Concretely, every priority level doubles the expected cadence versus the
 one above it — P0 needs a task Hecho **daily** to stay full, P1 every 2
 days, P2 every 4, P3 every 8, P4 every 16, P5 every 32 — and the meter
 empties as the days since the lane's last completed task (or, if it has
-none yet, since the objective was created) go from 0 to that cadence. A
-word next to it sums it up: **fresco** (full, what used to be green),
-**tibio** (half-way) and **frío** (empty, what used to be red). It's plain
-text, so it reads the same in black and white or any theme. This is purely
+none yet, since the objective was created) go from 0 to that cadence: full
+is what used to be green, empty what used to be red. It's plain text, so
+it reads the same in black and white or any theme. This is purely
 visual — it doesn't block or gate anything, unlike the WIP limit. Paused
 lanes show `(apagado)` instead.
 
@@ -243,13 +244,15 @@ task and need no separate storage.
 
 ## Trabajo en curso (`F12`)
 
-`F12` opens a list of **every task In progress**, across all lanes (each
-row shows its objective). Inside it:
+`F12` opens a list of **every task In progress**, across all lanes, sorted
+by the objective's priority first and then by the task's own priority. Each
+row shows the title, its priority and objective on the left, and its type
+and labels in a box at the right end. Inside it:
 
 | Key | Action |
 |---|---|
 | `↑/k` `↓/j` | Select a task |
-| `d` | Open its detail view: full text, comments, and add a comment |
+| `enter` / `d` | Open its detail view: full text, comments, and add a comment |
 | `x` | Mark it Hecho (it leaves the list immediately) |
 | `escape` / `F12` | Close the panel |
 

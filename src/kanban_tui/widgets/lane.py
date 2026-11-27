@@ -16,21 +16,15 @@ from .column import Column
 STATUS_ORDER = [Status.BACKLOG, Status.DOING, Status.DONE]
 
 # Frescura del carril (ver lane_freshness) como medidor de bloques junto al
-# nombre: lleno = verde (recién se terminó algo), vacío = rojo (lleva todo
-# su ritmo sin terminar nada). Sin colores, así se lee en blanco y negro.
+# nombre: lleno = recién se terminó algo, vacío = lleva todo su ritmo sin
+# terminar nada. Sin colores, así se lee en blanco y negro.
 METER_WIDTH = 8
 
 
 def freshness_meter(ratio: float) -> str:
     ratio = max(0.0, min(1.0, ratio))
     filled = round((1.0 - ratio) * METER_WIDTH)
-    if ratio < 0.34:
-        word = "fresco"
-    elif ratio < 0.67:
-        word = "tibio"
-    else:
-        word = "frío"
-    return f"▕{'█' * filled}{'░' * (METER_WIDTH - filled)}▏ {word}"
+    return f"▕{'█' * filled}{'░' * (METER_WIDTH - filled)}▏"
 
 
 class Lane(Vertical):
@@ -110,7 +104,7 @@ class Lane(Vertical):
             meter = freshness_meter(lane_freshness(self.tasks, self.priority or 0, self.created_at))
 
         first = (
-            f"[bold]{escape(self.title_text)}[/bold]  {meter}  ·  "
+            f"[bold]{escape(self.title_text)}[/bold]  {meter} {done} completadas  ·  "
             f"P{self.priority}  ·  Pend {backlog}"
         )
         return first, doing_text, f"Hecho {done}"

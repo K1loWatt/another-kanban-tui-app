@@ -44,11 +44,9 @@ Lane {
     border-top: solid $foreground 40%;
 }
 
-/* La línea de arriba de cada carril separa un objetivo del siguiente; el
-   activo la lleva gruesa. La frescura va como medidor en el título. */
-Lane.active-lane {
-    border-top: heavy $foreground;
-}
+/* La línea de arriba de cada carril separa un objetivo del siguiente; es
+   igual para todos (sin resaltar el activo: ya se ve porque es el único
+   desplegado). La frescura va como medidor en el título. */
 
 /* Objetivo apagado: todo en gris, pero sigue editable con normalidad. */
 Lane.paused-lane .lane-cell {
@@ -630,17 +628,36 @@ WipScreen {
 .wip-row {
     height: 3;
     padding: 0 1;
-    color: $foreground;
     border: round $foreground 25%;
+}
+
+.wip-row-title {
+    width: 1fr;
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Tipo + etiquetas en un recuadro al final de la derecha (vídeo inverso:
+   en el tema blanco y negro, letras negras sobre blanco). */
+.wip-row-tags {
+    width: auto;
+    max-width: 50%;
+    height: 1;
+    padding: 0 1;
+    margin-left: 2;
+    text-style: reverse;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
 
 .wip-row.selected {
     background: $boost;
-    color: $accent;
-    text-style: bold;
     border: heavy $accent;
+}
+
+.wip-row.selected .wip-row-title {
+    text-style: bold;
 }
 
 #objectives-actions Button, #recurring-actions Button {
