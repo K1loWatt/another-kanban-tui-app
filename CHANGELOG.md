@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0]
+
+### Changed
+
+- Only the active lane shows its tasks; the other lanes collapse to their
+  title line (with counts). Switching lanes repaints just two lanes.
+- Columns no longer scroll: they show 5 tasks per page (`pág 1/3`).
+  `↑`/`↓` flip to the next/previous page past the edge, `pageup` /
+  `pagedown` jump a whole page.
+- Moving a task between columns is now `,` (back) and `.` (forward)
+  instead of `shift+←` / `shift+→`.
+- Cards are a single line: icon, title, type and labels.
+
+### Performance
+
+- Creating, editing, moving or archiving a task no longer re-reads every
+  file and rebuilds every lane: only the affected lane is repainted.
+- Card widgets are reused instead of being removed and re-mounted.
+- Removed the blink timer (urgent / approaching cards keep a fixed color)
+  and the title-bar clock.
+- The app's own saves no longer trigger a full reload on the next external
+  change check (which now runs every 5 s instead of 3 s).
+
 ## [1.3.0]
 
 ### Added

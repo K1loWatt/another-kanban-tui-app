@@ -40,7 +40,7 @@ Footer {
 Lane {
     height: auto;
     margin-bottom: 1;
-    padding: 0 1 1 1;
+    padding: 0 1;
     border-top: solid #44475a;
 }
 
@@ -62,11 +62,6 @@ Lane.paused-lane TaskCard {
     border-left: thick #4a4a4a;
     background: transparent;
     text-style: none;
-}
-
-Lane.paused-lane TaskCard.blink-active {
-    color: #6b6b6b;
-    background: transparent;
 }
 
 Lane.paused-lane TaskCard.selected {
@@ -107,13 +102,23 @@ Lane.paused-lane TaskCard.selected {
     height: auto;
 }
 
-/* Cada tarjeta mide 5 filas (3 de contenido + borde arriba/abajo), así que
-   30 filas = ~6 tareas visibles antes de que la columna haga scroll. */
+/* Sin scroll: cada columna muestra como mucho 5 tarjetas (3 filas cada una:
+   1 de contenido + borde) y pagina el resto (ver Column en column.py). */
 Column {
     width: 1fr;
     height: auto;
-    max-height: 30;
     padding: 0 1;
+}
+
+.column-pager {
+    height: 1;
+    color: #6272a4;
+    content-align: center middle;
+    width: 1fr;
+}
+
+Lane.active-lane {
+    padding-bottom: 1;
 }
 
 .empty-hint {
@@ -131,7 +136,7 @@ Column {
 /* Borde suave en cada tarjeta para separar visualmente una tarea de otra. */
 TaskCard {
     width: 1fr;
-    height: 5;
+    height: 3;
     padding: 0 1;
     background: transparent;
     color: #f8f8f2;
@@ -153,25 +158,15 @@ TaskCard.alert-stuck {
     border-left: thick #bd93f9;
 }
 
-/* Expedito: parpadea en rojo */
+/* Expedito: rojo fijo */
 TaskCard.alert-urgent {
     color: #ffb3a0;
     border-left: thick #ff5555;
 }
 
-TaskCard.alert-urgent.blink-active {
-    background: #4a1f1f;
-    color: #ffd9cf;
-}
-
-/* Fecha límite próxima: parpadea en ámbar */
+/* Fecha límite próxima: ámbar fijo */
 TaskCard.alert-approaching {
     border-left: thick #ffb86c;
-}
-
-TaskCard.alert-approaching.blink-active {
-    background: #4a3b1f;
-    color: #ffe9bd;
 }
 
 /* Vencida: marca roja fija (sin parpadeo) */
@@ -198,11 +193,6 @@ TaskCard.selected {
 
 TaskCard.selected.alert-normal {
     border-left: heavy #ff79c6;
-}
-
-TaskCard.selected.blink-active {
-    background: #4d5066;
-    color: #ffa0dc;
 }
 
 TaskFormScreen, ConfirmScreen {

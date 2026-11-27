@@ -8,14 +8,15 @@ development notes.
 
 ## Look & feel
 
-The board renders as one big minimalist table rather than boxed cards: each
-task is a single compact row (icon, title, priority, due date, labels — like
-an email client's inbox list). Every column (Pendientes/En progreso/Hecho)
-grows to fit its tasks up to **6** (30 rows, since each card is 3 lines of
-content plus its border) and scrolls internally beyond that, so a single overloaded lane can't
-push every other lane off-screen; the whole board also scrolls as one page
-on top of that. Color scheme is [Dracula](https://draculatheme.com/)
-(scrollbars included).
+The board renders as one big minimalist table. Only the **active lane**
+shows its tasks; every other lane collapses to its title line (with its
+counts), so switching lanes is instant and the screen stays readable.
+
+Each column (Pendientes/En progreso/Hecho) shows at most **5** tasks per
+page, with no scrolling. When a column has more, a `pág 1/3 · 12 tareas`
+line appears under it: `↑`/`↓` flip to the next/previous page when you go
+past the edge, and `pageup` / `pagedown` jump a whole page. Color scheme is
+[Dracula](https://draculatheme.com/) (scrollbars included).
 
 Every task card has a soft rounded border so neighbouring tasks are easy
 to tell apart. The selected task gets a thick pink border (its left edge
@@ -31,7 +32,7 @@ The task form's Descripción and Criterio de aceptación fields are a full
 **10 lines** each (there's real writing room to describe acceptance
 criteria properly).
 
-The app's title bar shows the installed version (`Tablero Kanban v1.3.0`),
+The app's title bar shows the installed version (`Tablero Kanban v1.4.0`),
 so you can always tell which build you're on at a glance. See
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -54,22 +55,16 @@ Energía](#recarga-energía)). A paused objective's whole lane — title, descri
 in grey, regardless of any alert color it would otherwise have; it's still
 fully editable, just visually out of the way.
 
-Each task row is three lines: the compact title/meta line, then two tree
-nodes —
+Each card is a single line: service-class icon, title, type and labels —
 
 ```
-🔥 Fix production outage on payments API   P0   vencida 2026-10-10   bug
- |_ Payments API is returning 500s intermittently.
- |_ 500s drop below 0.1% for 15 straight minutes.
+🔥 Fix production outage on payments API   Expedito   bug
 ```
 
-— `|_` Resumen (a one-line preview of the description) and `|_` Criterio de
-aceptación (acceptance criteria). Both are truncated with `…` rather than
-wrapped, so every card stays exactly 3 rows tall. Press `s` for the full,
-untruncated text of every task in the active lane (see
-[Objective summary](#objective-summary-s)), or press `v` on a single task to
-see its full detail and comments without entering edit mode (see
-[Task detail & comments](#task-detail--comments-v)).
+Press `v` on a task for its full detail (description, acceptance criteria,
+due date, comments; see [Task detail & comments](#task-detail--comments-v)),
+or `s` for the full text of every task in the active lane (see
+[Objective summary](#objective-summary-s)).
 
 ## Swimlanes
 
@@ -175,17 +170,15 @@ configure, and no separate state file to get out of sync.
 A task can be marked as **blocked by** another task in the same objective
 (set from the task form's "Bloqueada por" field, which only lists siblings
 of the currently selected objective). While its blocker isn't Hecho yet,
-the blocked task renders in **red** on the board — title line tagged
-`🔒 bloqueada`, and its Resumen line spells out which task is blocking it —
-and it cannot be moved or created into `Doing` (same check in the quick
+the blocked task renders with a **red** border on the board (open it with
+`v` to see which task is blocking it) and it cannot be moved or created into `Doing` (same check in the quick
 move shortcuts and in the form). Once the blocker is marked Hecho, the
 block clears automatically; nothing needs to be unset by hand.
 
 ### Stuck-in-progress tasks
 
 A task sitting in `Doing` for **N days or more** (default 5, configurable
-from the settings panel — `a`) is flagged `⏳ atascada` and renders in
-**purple**, as a nudge to either finish it or admit it's stuck and
+from the settings panel — `a`) renders with a **purple** border, as a nudge to either finish it or admit it's stuck and
 split/requeue it. Press `f` on it to mark it Hecho and immediately open the
 new-task popup to queue up what comes next in the same lane, in one motion.
 
@@ -372,13 +365,12 @@ Each card shows one alert state (checked in this order, only one applies):
 
 1. **Blocked** by another unfinished task in the same objective — solid
    red border, bold.
-2. **Expedito** — blinks slowly in **red**.
+2. **Expedito** — solid **red** border.
 3. **Stuck in progress** (`Doing` for N+ days, default 5) — solid **purple**
    border.
 4. **Approaching due date** — due within N days (default 3) and not done —
-   blinks slowly in **yellow**.
-5. **Overdue** — due date in the past and not done — solid red border (no
-   blink).
+   solid **amber** border.
+5. **Overdue** — due date in the past and not done — solid red border.
 6. **Low priority** (`priority` 4 or 5) — solid green border.
 7. Otherwise — plain default styling.
 
@@ -386,9 +378,8 @@ A paused objective's lane overrides all of the above to plain grey (see
 [Swimlanes](#swimlanes)) — the alert state is still computed and still
 affects move/create rules, it just isn't painted in color while parked.
 
-Priority is a 0–5 scale (0 = highest, 5 = lowest), shown as a colored dot
-(red 0-1, yellow 2-3, green 4-5) plus the number on each card. Labels are
-shown as colored chips. Stale Intangible tasks get an extra warning line.
+Priority is a 0–5 scale (0 = highest, 5 = lowest); it isn't printed on
+the card (see it with `v`). Labels are shown as colored chips.
 
 Within a lane, tasks whose due date is approaching/overdue and are
 Fecha-fija sort to the top; otherwise sorted by soonest due date, then
@@ -454,7 +445,7 @@ KANBAN_TUI_TASKS_DIR=./tasks poetry run kanban-tui
    `~/MEGA/KanbanTasks`.
 2. On every machine, set `tasks_dir` in `~/.config/kanban-tui/config.json`
    (or `KANBAN_TUI_TASKS_DIR`) to that synced folder.
-3. The app polls the folder every few seconds and auto-reloads when files
+3. The app polls the folder every 5 seconds and auto-reloads when files
    change, so edits made on another machine show up without restarting.
    Press `r` to force a manual reload at any time.
 
@@ -463,8 +454,8 @@ KANBAN_TUI_TASKS_DIR=./tasks poetry run kanban-tui
 | Key | Action |
 |---|---|
 | `←/h` `→/l` | Switch column within the active lane |
-| `↑/k` `↓/j` | Move selection within a column, one task at a time |
-| `pageup` / `pagedown` | Step to the previous / next task one at a time without skipping any: past the end of the column it continues in the same column of the next lane that has tasks, and stops at the ends of the board (scrolls a popup's body instead, if one is open) |
+| `↑/k` `↓/j` | Move selection within a column, one task at a time (flips page at the edge) |
+| `pageup` / `pagedown` | Previous / next page of the active column (5 tasks per page; scrolls a popup's body instead, if one is open) |
 | `tab` | Switch to the next lane (moves focus to the next field instead, if a popup is open) |
 | `shift+tab` | Switch to the previous lane (moves focus to the previous field instead, if a popup is open) |
 | `n` | New task (created in the active lane/column) |
@@ -472,8 +463,8 @@ KANBAN_TUI_TASKS_DIR=./tasks poetry run kanban-tui
 | `v` | View the selected task's full detail + comments (read-only) and add a comment |
 | `f` | Mark the selected task Hecho and immediately open the popup to create the next backlog task in the same lane |
 | `d` | Archive selected task (asks to confirm) — see [Archiving tasks](#archiving-tasks-d) |
-| `shift+←` / `H` | Move task to the previous column (checks WIP/bloqueo) |
-| `shift+→` / `L` | Move task to the next column (checks WIP/bloqueo) |
+| `,` | Move task back one column: Hecho → En progreso → Pendientes |
+| `.` | Move task forward one column: Pendientes → En progreso → Hecho (checks WIP/bloqueo) |
 | `c` | Close the active lane — always asks to confirm |
 | `p` | Pause/unpause the active lane's objective |
 | `s` | Show the active lane's full summary (every task's Resumen + Criterio de aceptación) |

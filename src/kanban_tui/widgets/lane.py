@@ -6,7 +6,6 @@ from rich.markup import escape
 from textual.app import ComposeResult
 from textual.color import Color
 from textual.containers import Horizontal, Vertical
-from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -30,7 +29,12 @@ def _gradient_color(ratio: float) -> str:
 
 
 class Lane(Vertical):
-    """Un carril horizontal del tablero, uno por objetivo."""
+    """Un carril horizontal del tablero, uno por objetivo.
+
+    Solo el carril activo despliega sus columnas y pinta tarjetas; los demás
+    se quedan plegados en su línea de título (con los contadores), así
+    cambiar de carril solo repinta dos carriles y no todo el tablero.
+    """
 
     is_active: reactive[bool] = reactive(False)
 
@@ -58,19 +62,24 @@ class Lane(Vertical):
         self.created_at = created_at
         self.active_column_index = 0
         self.tasks: list[Task] = []
+        self._columns: list[Column] = []
+        self._title: Static | None = None
+        self._body: Horizontal | None = None
+        self._dirty = True
         self.add_class("objective-lane")
         if is_paused:
             self.add_class("paused-lane")
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="lane-header"):
-            yield Static(self._header_text(), classes="lane-title", id=f"lane-title-{self.lane_key}")
+            self._title = Static(self._header_text(), classes="lane-title")
+            yield self._title
         description = oneline(self.description) if self.description else "(sin descripción)"
         yield Static(f"   {description}", classes="lane-description")
-        with Horizontal(classes="lane-body"):
-            for status in STATUS_ORDER:
-                wip = self.wip_limit if status == Status.DOING else None
-                yield Column(status, lane_key=self.lane_key, wip_limit=wip, id=f"column-{self.lane_key}-{status.value}")
+        self._columns = [Column(status, lane_key=self.lane_key) for status in STATUS_ORDER]
+        self._body = Horizontal(*self._columns, classes="lane-body")
+        self._body.display = False
+        yield self._body
 
     def _header_text(self) -> str:
         backlog = sum(1 for t in self.tasks if t.status == Status.BACKLOG)
@@ -91,12 +100,6 @@ class Lane(Vertical):
             f"Pend {backlog}   ·   {doing_text}   ·   Hecho {done}{badge_text}"
         )
 
-    def _refresh_header(self) -> None:
-        try:
-            self.query_one(f"#lane-title-{self.lane_key}", Static).update(self._header_text())
-        except NoMatches:
-            pass
-
     def _refresh_border(self) -> None:
         weight = "heavy" if self.is_active else "solid"
         if self.is_paused:
@@ -110,11 +113,11 @@ class Lane(Vertical):
 
     @property
     def columns(self) -> list[Column]:
-        return [self.query_one(f"#column-{self.lane_key}-{s.value}", Column) for s in STATUS_ORDER]
+        return self._columns
 
     @property
     def active_column(self) -> Column:
-        return self.columns[self.active_column_index]
+        return self._columns[self.active_column_index]
 
     def doing_count(self) -> int:
         return sum(1 for task in self.tasks if task.status == Status.DOING)
@@ -125,19 +128,36 @@ class Lane(Vertical):
         for task in tasks:
             by_status[task.status].append(task)
         id_to_task = {t.id: t for t in tasks}
-        for column in self.columns:
+        for column in self._columns:
             column.set_tasks(by_status[column.status], id_to_task, settings)
-        self._refresh_header()
-        self._refresh_active_column()
+        if self._title is not None:
+            self._title.update(self._header_text())
         self._refresh_border()
+        self._dirty = True
+        if self.is_active:
+            self._render_columns()
+
+    def _render_columns(self) -> None:
+        for i, column in enumerate(self._columns):
+            column.is_active = i == self.active_column_index
+            column.render_page()
+        self._dirty = False
 
     def _refresh_active_column(self) -> None:
-        for i, column in enumerate(self.columns):
-            column.is_active = self.is_active and i == self.active_column_index
+        for i, column in enumerate(self._columns):
+            column.set_active(self.is_active and i == self.active_column_index)
 
     def watch_is_active(self, value: bool) -> None:
         self.set_class(value, "active-lane")
-        self._refresh_active_column()
+        if self._body is not None:
+            self._body.display = value
+        if value:
+            if self._dirty:
+                self._render_columns()
+            else:
+                self._refresh_active_column()
+        else:
+            self._refresh_active_column()
         self._refresh_border()
 
     def focus_left(self) -> None:
@@ -151,15 +171,21 @@ class Lane(Vertical):
     def move_selection(self, delta: int) -> None:
         self.active_column.move_selection(delta)
 
+    def change_page(self, delta: int) -> None:
+        self.active_column.change_page(delta)
+
     def get_selected_task(self) -> Task | None:
         return self.active_column.get_selected_task()
 
     def select_task_by_id(self, task_id: str) -> bool:
-        for i, column in enumerate(self.columns):
+        for i, column in enumerate(self._columns):
             for j, task in enumerate(column.tasks):
                 if task.id == task_id:
                     self.active_column_index = i
                     column.selected_index = j
-                    self._refresh_active_column()
+                    if self.is_active:
+                        self._render_columns()
+                    else:
+                        self._dirty = True
                     return True
         return False

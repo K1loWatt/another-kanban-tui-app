@@ -23,7 +23,6 @@ from .screens.task_form import TaskFormScreen
 from .settings import load_settings
 from .widgets.column import STATUS_TITLES
 from .widgets.lane import STATUS_ORDER, Lane
-from .widgets.task_card import TaskCard
 
 
 STATS_BAR_WIDTH = 20
@@ -44,12 +43,12 @@ class KanbanApp(App):
         Binding("right,l", "focus_right", "Columna", show=False),
         Binding("up,k", "focus_up", "Arriba", show=False),
         Binding("down,j", "focus_down", "Abajo", show=False),
-        Binding("shift+left,H", "move_left", "Mover ←"),
-        Binding("shift+right,L", "move_right", "Mover →"),
+        Binding("comma", "move_left", "← Retroceder"),
+        Binding("full_stop", "move_right", "Avanzar →"),
         Binding("shift+tab", "prev_lane", "Carril ↑", priority=True),
         Binding("tab", "next_lane", "Carril ↓", priority=True),
-        Binding("pageup", "jump_up", "Tarea anterior", show=False, priority=True),
-        Binding("pagedown", "jump_down", "Tarea siguiente", show=False, priority=True),
+        Binding("pageup", "jump_up", "Pág ↑", show=False, priority=True),
+        Binding("pagedown", "jump_down", "Pág ↓", show=False, priority=True),
         Binding("c", "close_active_lane", "Cerrar carril"),
         Binding("p", "toggle_pause_lane", "Apagar/Encender"),
         Binding("f", "finish_and_next", "Terminar y crear siguiente"),
@@ -70,9 +69,15 @@ class KanbanApp(App):
         objectives.ensure_default_objective(self.tasks_dir)
         self.active_lane_index = 0
         self._last_signature: tuple = ()
+        # Caché en memoria: los cambios hechos desde la propia app actualizan
+        # esto y solo repintan los carriles afectados, sin releer el disco.
+        self._tasks: list[Task] = []
+        self._lanes: list[Lane] = []
+        self._settings = load_settings(self.tasks_dir)
+        self._health = 1.0
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
+        yield Header()
         yield Static("", id="stats-banner")
         with Horizontal(id="board-header"):
             for status in STATUS_ORDER:
@@ -95,10 +100,9 @@ class KanbanApp(App):
         self.title = f"Tablero Kanban v{__version__}"
         self.sub_title = str(self.tasks_dir)
         self._migrate_task_objectives()
+        self._lanes = list(self.query(Lane))
         self.reload_tasks()
-        self._refresh_active()
-        self.set_interval(0.8, self._toggle_blink)
-        self.set_interval(3.0, self._check_external_changes)
+        self.set_interval(5.0, self._check_external_changes)
 
     def _active_objectives(self) -> list[objectives.Objective]:
         return sorted(
@@ -137,7 +141,7 @@ class KanbanApp(App):
 
     @property
     def lanes(self) -> list[Lane]:
-        return list(self.query(Lane))
+        return self._lanes
 
     @property
     def active_lane(self) -> Lane:
@@ -161,9 +165,9 @@ class KanbanApp(App):
                     id=f"lane-{objective.id}",
                 )
             )
+        self._lanes = list(self.query(Lane))
         self.active_lane_index = 0
         self.reload_tasks()
-        self._refresh_active()
 
     @staticmethod
     def _stats_banner_text(
@@ -183,12 +187,15 @@ class KanbanApp(App):
         return f"{wip_text}   ·   {intangible_text}   ·   {health_text}"
 
     def reload_tasks(self, keep_selection: bool = False) -> None:
+        """Recarga completa desde el disco (arranque, `r`, cambios externos,
+        objetivos/ajustes). Los cambios hechos desde la app usan
+        `_commit_task`, que no relee nada."""
         selected_id = None
-        if keep_selection:
+        if keep_selection and self.lanes:
             task = self.active_lane.get_selected_task()
             selected_id = task.id if task else None
 
-        settings = load_settings(self.tasks_dir)
+        settings = self._settings = load_settings(self.tasks_dir)
         tasks = storage.load_active_tasks(self.tasks_dir)
         storage.escalate_due_dates(
             self.tasks_dir,
@@ -198,24 +205,48 @@ class KanbanApp(App):
             due_urgent_days=settings.due_urgent_days,
             due_urgent_cap=settings.due_urgent_priority_cap,
         )
-        visible_names = [o.name for o in self._visible_objectives()]
+        self._tasks = tasks
+        self._health = recurring.recurring_health(recurring.load_recurring_tasks(self.tasks_dir))
 
         for lane in self.lanes:
-            lane_tasks = [t for t in tasks if t.objective == lane.title_text]
-            lane.set_tasks(lane_tasks, settings=settings)
+            lane.set_tasks(self._lane_tasks(lane.title_text), settings=settings)
 
         if selected_id:
             self.select_task_by_id(selected_id)
 
-        doing_global = wip_rules.global_doing_count(tasks, visible_names=visible_names)
-        intangible_debt = wip_rules.intangible_debt(tasks)
-        health = recurring.recurring_health(recurring.load_recurring_tasks(self.tasks_dir))
-        self.query_one("#stats-banner", Static).update(
-            self._stats_banner_text(doing_global, settings.global_wip_limit, intangible_debt, health)
-        )
-
+        self._update_banner()
         self._last_signature = storage.dir_signature(self.tasks_dir)
         self._refresh_active()
+
+    def _lane_tasks(self, objective_name: str) -> list[Task]:
+        return [t for t in self._tasks if t.objective == objective_name]
+
+    def _update_banner(self) -> None:
+        visible_names = [lane.title_text for lane in self.lanes]
+        doing_global = wip_rules.global_doing_count(self._tasks, visible_names=visible_names)
+        intangible_debt = wip_rules.intangible_debt(self._tasks)
+        self.query_one("#stats-banner", Static).update(
+            self._stats_banner_text(
+                doing_global, self._settings.global_wip_limit, intangible_debt, self._health
+            )
+        )
+
+    def _commit_task(self, task: Task, old_objective: str | None = None) -> None:
+        """Guarda una tarea y actualiza solo lo que cambia: la caché en
+        memoria, los carriles de su objetivo (y del anterior, si se movió de
+        carril) y el banner. Nada de releer todo el disco."""
+        storage.save_task(self.tasks_dir, task)
+        self._tasks = [t for t in self._tasks if t.id != task.id]
+        if not task.archived:
+            self._tasks.append(task)
+        affected = {task.objective, old_objective}
+        for lane in self.lanes:
+            if lane.title_text in affected:
+                lane.set_tasks(self._lane_tasks(lane.title_text), settings=self._settings)
+        self._update_banner()
+        # Que el sondeo de cambios externos no confunda este guardado con
+        # una edición hecha en otra máquina.
+        self._last_signature = storage.dir_signature(self.tasks_dir)
 
     def _refresh_active(self) -> None:
         lanes = self.lanes
@@ -224,6 +255,8 @@ class KanbanApp(App):
         self.active_lane_index = max(0, min(self.active_lane_index, len(lanes) - 1))
         for i, lane in enumerate(lanes):
             lane.is_active = i == self.active_lane_index
+        active = lanes[self.active_lane_index]
+        self.call_after_refresh(active.scroll_visible, animate=False)
 
     def action_focus_left(self) -> None:
         self.active_lane.focus_left()
@@ -241,41 +274,13 @@ class KanbanApp(App):
         if self._modal_active:
             self._scroll_modal_body(-1)
             return
-        self._step_through_board(-1)
+        self.active_lane.change_page(-1)
 
     def action_jump_down(self) -> None:
         if self._modal_active:
             self._scroll_modal_body(1)
             return
-        self._step_through_board(1)
-
-    def _step_through_board(self, delta: int) -> None:
-        """Avanza la selección de una en una tarea, sin saltarse ninguna ni
-        dar la vuelta: al llegar al final (o principio) de la columna sigue en
-        la misma columna del siguiente (o anterior) carril que tenga tareas.
-        En el extremo del tablero se queda quieta."""
-        lanes = self.lanes
-        if not lanes:
-            return
-        lane = self.active_lane
-        column = lane.active_column
-        if column.tasks and 0 <= column.selected_index + delta < len(column.tasks):
-            column.move_selection(delta)
-            return
-
-        col_index = lane.active_column_index
-        idx = self.active_lane_index + delta
-        while 0 <= idx < len(lanes):
-            target_lane = lanes[idx]
-            target = target_lane.columns[col_index]
-            if target.tasks:
-                target_lane.active_column_index = col_index
-                target.selected_index = 0 if delta > 0 else len(target.tasks) - 1
-                self.active_lane_index = idx
-                self._refresh_active()
-                target.refresh_selection()
-                return
-            idx += delta
+        self.active_lane.change_page(1)
 
     def action_prev_lane(self) -> None:
         if self._modal_active:
@@ -312,14 +317,13 @@ class KanbanApp(App):
         status = lane.active_column.status
         default_objective = lane.title_text
         objective_names = [o.name for o in self._visible_objectives()]
-        other_tasks = storage.load_active_tasks(self.tasks_dir)
-        settings = load_settings(self.tasks_dir)
+        other_tasks = list(self._tasks)
+        settings = self._settings
 
         def handle(task: Task | None) -> None:
             if task is None:
                 return
-            storage.save_task(self.tasks_dir, task)
-            self.reload_tasks()
+            self._commit_task(task)
             self.select_task_by_id(task.id)
 
         self.push_screen(
@@ -340,14 +344,14 @@ class KanbanApp(App):
 
     def edit_task(self, task: Task) -> None:
         objective_names = [o.name for o in self._visible_objectives()]
-        other_tasks = [t for t in storage.load_active_tasks(self.tasks_dir) if t.id != task.id]
-        settings = load_settings(self.tasks_dir)
+        other_tasks = [t for t in self._tasks if t.id != task.id]
+        settings = self._settings
+        old_objective = task.objective
 
         def handle(updated: Task | None) -> None:
             if updated is None:
                 return
-            storage.save_task(self.tasks_dir, updated)
-            self.reload_tasks()
+            self._commit_task(updated, old_objective=old_objective)
             self.select_task_by_id(updated.id)
 
         self.push_screen(
@@ -382,19 +386,17 @@ class KanbanApp(App):
         task.status = Status.DONE
         if task.completed_at is None:
             task.completed_at = date.today()
-        storage.save_task(self.tasks_dir, task)
-        self.reload_tasks()
+        self._commit_task(task)
 
         default_objective = lane.title_text
         objective_names = [o.name for o in self._visible_objectives()]
-        other_tasks = storage.load_active_tasks(self.tasks_dir)
-        settings = load_settings(self.tasks_dir)
+        other_tasks = list(self._tasks)
+        settings = self._settings
 
         def handle(new_task: Task | None) -> None:
             if new_task is None:
                 return
-            storage.save_task(self.tasks_dir, new_task)
-            self.reload_tasks()
+            self._commit_task(new_task)
             self.select_task_by_id(new_task.id)
 
         self.push_screen(
@@ -415,8 +417,8 @@ class KanbanApp(App):
 
         def handle(confirmed: bool) -> None:
             if confirmed:
-                storage.archive_task(self.tasks_dir, task)
-                self.reload_tasks()
+                task.archived = True
+                self._commit_task(task)
                 self.notify(f"«{task.title}» archivada (el archivo sigue en disco)")
 
         self.push_screen(
@@ -439,8 +441,8 @@ class KanbanApp(App):
         new_status = STATUS_ORDER[new_idx]
 
         if new_status == Status.DOING:
-            all_tasks = storage.load_active_tasks(self.tasks_dir)
-            settings = load_settings(self.tasks_dir)
+            all_tasks = self._tasks
+            settings = self._settings
 
             if task.blocked_by:
                 blocker = next((t for t in all_tasks if t.id == task.blocked_by), None)
@@ -489,8 +491,7 @@ class KanbanApp(App):
         elif task.status != Status.DONE:
             task.completed_at = None
 
-        storage.save_task(self.tasks_dir, task)
-        self.reload_tasks()
+        self._commit_task(task)
         self.select_task_by_id(task.id)
 
     def action_move_left(self) -> None:
@@ -546,7 +547,7 @@ class KanbanApp(App):
 
     def action_show_objective_summary(self) -> None:
         lane = self.active_lane
-        settings = load_settings(self.tasks_dir)
+        settings = self._settings
         self.push_screen(
             ObjectiveSummaryScreen(
                 lane.title_text,
@@ -594,7 +595,7 @@ class KanbanApp(App):
             return
         unfinished = sum(
             1
-            for t in storage.load_active_tasks(self.tasks_dir)
+            for t in self._tasks
             if t.objective == objective.name and t.status != Status.DONE
         )
 
@@ -620,25 +621,15 @@ class KanbanApp(App):
 
     def select_task_by_id(self, task_id: str) -> None:
         for i, lane in enumerate(self.lanes):
-            if lane.select_task_by_id(task_id):
-                self.active_lane_index = i
-                self._refresh_active()
+            if any(t.id == task_id for t in lane.tasks) and lane.select_task_by_id(task_id):
+                if i != self.active_lane_index:
+                    self.active_lane_index = i
+                    self._refresh_active()
                 return
 
     def select_card(self, task: Task) -> None:
         self.select_task_by_id(task.id)
         self.edit_task(task)
-
-    def _toggle_blink(self) -> None:
-        if not self.is_running:
-            return
-        try:
-            lanes = self.lanes
-        except NoMatches:
-            return
-        for lane in lanes:
-            for card in lane.query(TaskCard):
-                card.blink_on = not card.blink_on
 
     def _check_external_changes(self) -> None:
         if not self.is_running:
