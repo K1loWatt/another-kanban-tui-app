@@ -172,18 +172,13 @@ class Column(Vertical):
         self._select((self.selected_index + delta) % len(self.tasks))
 
     def change_page(self, delta: int) -> None:
+        """`pageup` / `pagedown`: avanza una sola tarea, sin dar la vuelta
+        en los extremos; la ventana se mueve sola si la tarea queda fuera."""
         if not self.tasks:
             return
-        start = self._clamp_start(self.window_start + delta * PAGE_SIZE)
-        if start == self.window_start:
-            return
-        # Al avanzar, el cursor cae en la primera tarea nueva (con 8 tareas,
-        # en la 6ª); al retroceder, en la primera de la ventana.
-        if delta > 0:
-            index = min(self.window_start + PAGE_SIZE, len(self.tasks) - 1)
-        else:
-            index = start
-        self._select(index, window_start=start)
+        index = max(0, min(len(self.tasks) - 1, self.selected_index + delta))
+        if index != self.selected_index:
+            self._select(index)
 
     def get_selected_task(self) -> Task | None:
         if self.tasks and 0 <= self.selected_index < len(self.tasks):

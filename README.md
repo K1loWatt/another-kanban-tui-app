@@ -16,7 +16,8 @@ Each column (Pendientes/En progreso/Hecho) always takes the height of
 **5** tasks, with no scrolling, so the lane never changes height while
 you page. When a column has more, a `pág 1/2 · 8 tareas` line appears
 under it: `↑`/`↓` flip to the next/previous page when you go past the edge,
-and `pageup` / `pagedown` jump a whole page. Every page is full: the last
+and `pageup` / `pagedown` step one task at a time (stopping at the
+first/last task). Every page is full: the last
 one shows the last 5 tasks, overlapping the previous page if needed (with
 8 tasks: 1–5, then 4–8). Columns are split by a vertical line.
 
@@ -489,7 +490,7 @@ KANBAN_TUI_TASKS_DIR=./tasks poetry run kanban-tui
 |---|---|
 | `←/h` `→/l` | Switch column within the active lane |
 | `↑/k` `↓/j` | Move selection within a column, one task at a time (flips page at the edge) |
-| `pageup` / `pagedown` | Previous / next page of the active column (5 tasks per page; scrolls a popup's body instead, if one is open) |
+| `pageup` / `pagedown` | Previous / next task in the active column, one at a time, stopping at the ends (scrolls a popup's body instead, if one is open) |
 | `tab` | Switch to the next lane (moves focus to the next field instead, if a popup is open) |
 | `shift+tab` | Switch to the previous lane (moves focus to the previous field instead, if a popup is open) |
 | `n` | New task (created in the active lane/column) |
