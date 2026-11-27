@@ -12,7 +12,7 @@ from textual.widgets import Button, Input, Static
 from .. import storage
 from ..models import DATETIME_DISPLAY_FORMAT, Status, Task, format_date
 from ..settings import load_settings
-from ..widgets.task_card import SERVICE_CLASS_ICON
+from ..widgets.task_card import SERVICE_CLASS_NAME
 
 STATUS_LABELS = {
     Status.BACKLOG: "Pendiente",
@@ -44,8 +44,12 @@ class TaskDetailScreen(ModalScreen[bool]):
 
     def _header(self) -> str:
         task = self.task_item
-        icon = SERVICE_CLASS_ICON[task.service_class]
-        bits = [f"{icon} [bold]{escape(task.title)}[/bold]", STATUS_LABELS[task.status], f"P{task.priority}"]
+        bits = [
+            f"[bold]{escape(task.title)}[/bold]",
+            SERVICE_CLASS_NAME[task.service_class],
+            STATUS_LABELS[task.status],
+            f"P{task.priority}",
+        ]
         if task.objective:
             bits.append(f"obj: {escape(task.objective)}")
         if task.due_date:
@@ -68,7 +72,7 @@ class TaskDetailScreen(ModalScreen[bool]):
             if blocker is not None and blocker.status != Status.DONE:
                 body.mount(
                     Static(
-                        f"[bold #ff6b6b]🔒 Bloqueada por «{escape(blocker.title)}»[/] "
+                        f"[bold]BLOQUEADA por «{escape(blocker.title)}»[/] "
                         f"({STATUS_LABELS[blocker.status]})",
                         classes="detail-block",
                     )
@@ -77,7 +81,7 @@ class TaskDetailScreen(ModalScreen[bool]):
         stuck_doing_days = load_settings(self.tasks_dir).stuck_doing_days
         if self.task_item.is_stuck_doing(stuck_doing_days):
             body.mount(
-                Static("[bold #b36bff]⏳ Lleva demasiados días en progreso[/]", classes="detail-block")
+                Static("[bold]ATASCADA: lleva demasiados días en progreso[/]", classes="detail-block")
             )
 
         description = escape(self.task_item.description) or "(sin resumen)"
@@ -112,4 +116,8 @@ class TaskDetailScreen(ModalScreen[bool]):
 
     def on_key(self, event) -> None:
         if event.key == "escape":
+            # Que el escape no llegue también al panel de debajo (p. ej. el
+            # de trabajo en curso) y lo cierre de rebote.
+            event.stop()
+            event.prevent_default()
             self.dismiss(self.changed)

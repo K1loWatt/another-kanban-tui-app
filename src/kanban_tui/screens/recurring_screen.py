@@ -47,11 +47,12 @@ class RecurringScreen(ModalScreen[bool]):
                     placeholder=f"Intervalo en días ({DEFAULT_INTERVAL_DAYS})",
                     id="rec-new-interval",
                 )
-                yield Button("Añadir", id="rec-new-btn", variant="success")
             yield Input(placeholder="Descripción (opcional)", id="rec-new-description")
             yield Static("", id="recurring-error")
             with Horizontal(id="recurring-actions"):
                 yield Button("Cerrar ventana", id="rec-done", variant="default")
+                # Último de la cadena de tab: rellenar campos -> crear.
+                yield Button("Crear tarea recurrente", id="rec-new-btn", variant="success")
 
     async def on_mount(self) -> None:
         await self.refresh_rows()

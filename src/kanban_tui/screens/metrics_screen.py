@@ -26,10 +26,10 @@ SERVICE_CLASS_LABELS = {
 }
 
 SERVICE_CLASS_COLOR = {
-    ServiceClass.STANDARD: "#c9a06a",
-    ServiceClass.FIXED_DATE: "#ffcc66",
-    ServiceClass.EXPEDITE: "#ff5f56",
-    ServiceClass.INTANGIBLE: "#d9b36c",
+    ServiceClass.STANDARD: "$primary",
+    ServiceClass.FIXED_DATE: "$warning",
+    ServiceClass.EXPEDITE: "$error",
+    ServiceClass.INTANGIBLE: "$secondary",
 }
 
 
@@ -70,7 +70,7 @@ class MetricsScreen(ModalScreen[None]):
             )
         )
         for label, count, max_count in self._daily_throughput(tasks):
-            body.mount(Static(f"{label}  {_bar(count, max_count, '#6bbf6b')}", classes="metrics-row"))
+            body.mount(Static(f"{label}  {_bar(count, max_count, '$success')}", classes="metrics-row"))
 
         body.mount(Static("", classes="metrics-spacer"))
         body.mount(Static("Tiempos medios (tareas terminadas)", classes="metrics-section"))
@@ -86,7 +86,7 @@ class MetricsScreen(ModalScreen[None]):
         body.mount(
             Static(
                 f"Objetivos (límite global {settings.global_wip_limit}): "
-                f"{_bar(doing_global, max(settings.global_wip_limit, 1), '#ffb454')}",
+                f"{_bar(doing_global, max(settings.global_wip_limit, 1), '$warning')}",
                 classes="metrics-row",
             )
         )
@@ -96,7 +96,7 @@ class MetricsScreen(ModalScreen[None]):
         body.mount(
             Static(
                 f"Expedito (límite {settings.expedite_doing_limit}): "
-                f"{_bar(doing_urgent, max(settings.expedite_doing_limit, 1), '#ff5f56')}",
+                f"{_bar(doing_urgent, max(settings.expedite_doing_limit, 1), '$error')}",
                 classes="metrics-row",
             )
         )
@@ -105,7 +105,7 @@ class MetricsScreen(ModalScreen[None]):
         body.mount(Static("Deuda de intangibles", classes="metrics-section"))
         body.mount(
             Static(
-                f"💡 Intangibles pendientes (a partir de todo lo ya Hecho): {intangible_debt(tasks)}",
+                f"Intangibles pendientes (a partir de todo lo ya Hecho): {intangible_debt(tasks)}",
                 classes="metrics-row",
             )
         )

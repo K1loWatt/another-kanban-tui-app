@@ -8,7 +8,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
 from ..models import Status, Task, format_date
-from ..widgets.task_card import SERVICE_CLASS_ICON
+from ..widgets.task_card import SERVICE_CLASS_NAME
 
 STATUS_LABELS = {
     Status.BACKLOG: "Pendiente",
@@ -37,7 +37,7 @@ class ObjectiveSummaryScreen(ModalScreen[None]):
         self.tasks = tasks
 
     def compose(self) -> ComposeResult:
-        heading = f"\U0001f3af {self.lane_title}  ·  prioridad P{self.priority}"
+        heading = f"{self.lane_title}  ·  prioridad P{self.priority}"
         with Vertical(id="summary-dialog"):
             yield Static(heading, id="summary-title")
             yield Static(self._stats_line(), id="summary-stats")
@@ -63,9 +63,8 @@ class ObjectiveSummaryScreen(ModalScreen[None]):
 
     @staticmethod
     def _task_block(task: Task) -> Static:
-        icon = SERVICE_CLASS_ICON[task.service_class]
         header = (
-            f"{icon} [bold]{escape(task.title)}[/bold]   "
+            f"[bold]{escape(task.title)}[/bold]   {SERVICE_CLASS_NAME[task.service_class]}   "
             f"[dim]{STATUS_LABELS[task.status]} · P{task.priority}"
             f"{'  ·  vence ' + format_date(task.due_date) if task.due_date else ''}[/dim]"
         )

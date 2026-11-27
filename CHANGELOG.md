@@ -4,6 +4,49 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.0]
+
+### Added
+
+- `F12` opens **Trabajo en curso**: every In-progress task across all
+  lanes in one list. `d` shows its detail and lets you comment, `x` marks
+  it Hecho.
+
+### Changed
+
+- Columns always have the height of 5 tasks, so the lane no longer changes
+  height when paging. The last page shows the last 5 tasks (with 8 tasks:
+  1–5, then 4–8) instead of a half-empty page.
+- Columns are separated by a vertical line.
+- Colors now come only from Textual themes: every hard-coded color was
+  replaced by the active theme's variables. Pick a theme with the command
+  palette (`ctrl+p`); the choice is saved in
+  `~/.config/kanban-tui/config.json`.
+- New `kanban-high-contrast` theme, pure black and white, registered as a
+  regular Textual theme and used by default.
+- Lane freshness is a block meter next to the objective's name
+  (`▕██████░░▏ fresco` / `tibio` / `frío`) instead of a colored border.
+- Alerts are told apart by the shape of the card's left border (`║` blocked,
+  `█` expedite, `╏` stuck, `┃` approaching, `▌` overdue, `|` low priority).
+- Continuous vertical lines between the three columns, from the header to
+  the bottom of the board, across every lane; each lane's title rows are
+  split into the same three cells.
+- No emojis anywhere: cards, lane titles, banner, panels and the title bar
+  are plain text. Alert cards no longer change text color or weight;
+  only the left border shape marks them.
+- In the objectives and Recarga panels the create button ("Crear
+  objetivo" / "Crear tarea recurrente") moved to the end, so it's the last
+  stop of `tab`.
+- `d` now opens the task detail and `v` archives (they were swapped).
+
+### Fixed
+
+- The active lane lost its side padding (a `padding-bottom` rule reset it),
+  shifting its columns one cell left of the header.
+- Board keys (`n`, `d`, …) no longer fire underneath an open popup.
+- `escape` in the task detail view no longer also closes the panel
+  underneath it.
+
 ## [1.4.0]
 
 ### Changed

@@ -1,26 +1,9 @@
-* {
-    scrollbar-background: #313442;
-    scrollbar-background-hover: #3b3e4d;
-    scrollbar-background-active: #3b3e4d;
-    scrollbar-color: #6272a4;
-    scrollbar-color-hover: #bd93f9;
-    scrollbar-color-active: #ff79c6;
-    scrollbar-corner-color: #313442;
-}
-
 Screen {
-    background: #282a36;
+    layers: default overlay;
 }
 
-Header {
-    background: #313442;
-    color: #f8f8f2;
-}
-
-Footer {
-    background: #313442;
-}
-
+/* Sin barra de scroll en el tablero: así la fila de títulos y los carriles
+   tienen exactamente el mismo ancho y las columnas quedan alineadas. */
 #board-header {
     height: 1;
     padding: 0 3;
@@ -29,73 +12,91 @@ Footer {
 .board-col-header {
     width: 1fr;
     text-style: bold;
-    color: #6272a4;
+    color: $foreground;
+    padding: 0 1;
+}
+
+.board-col-header.header-doing, .board-col-header.header-done {
+    border-left: solid $foreground 40%;
 }
 
 #board {
     height: 1fr;
     padding: 1 2;
+    scrollbar-size-vertical: 0;
+}
+
+/* Líneas verticales continuas entre columnas, de la fila de títulos hasta
+   el final del tablero, por encima de todos los carriles (posición y alto
+   los calcula KanbanApp._place_separators). */
+.col-separator {
+    layer: overlay;
+    position: absolute;
+    width: 1;
+    height: 1;
+    color: $foreground 40%;
 }
 
 Lane {
     height: auto;
     margin-bottom: 1;
     padding: 0 1;
-    border-top: solid #44475a;
+    border-top: solid $foreground 40%;
 }
 
-/* El color (y, para carriles de objetivo, el grosor activo/inactivo) del
-   border-top se calcula en Python — ver Lane._refresh_border en lane.py —
-   según la frescura del carril (verde -> rojo) o su estado (urgencias /
-   apagado). La regla de arriba es solo el valor por defecto antes del
-   primer render. */
+/* La línea de arriba de cada carril separa un objetivo del siguiente; el
+   activo la lleva gruesa. La frescura va como medidor en el título. */
+Lane.active-lane {
+    border-top: heavy $foreground;
+}
 
 /* Objetivo apagado: todo en gris, pero sigue editable con normalidad. */
-Lane.paused-lane .lane-title,
-Lane.paused-lane .lane-description {
-    color: #6b6b6b;
+Lane.paused-lane .lane-cell {
+    color: $text-disabled;
 }
 
 Lane.paused-lane TaskCard {
-    color: #6b6b6b;
-    border: round #3a3a3a;
-    border-left: thick #4a4a4a;
+    color: $text-disabled;
+    border: round $foreground 15%;
+    border-left: thick $foreground 20%;
     background: transparent;
     text-style: none;
 }
 
 Lane.paused-lane TaskCard.selected {
-    background: #333333;
-    color: #cfcfcf;
+    background: $boost;
+    color: $text-muted;
     text-style: bold;
-    border: heavy #cfcfcf;
+    border: heavy $foreground 60%;
 }
 
 #stats-banner {
     height: 3;
     width: 1fr;
-    background: #323548;
+    background: $panel;
     content-align: center middle;
     padding: 1 0;
     margin: 1 0 2 0;
 }
 
-.lane-header {
+.lane-row {
     height: 1;
-    margin-bottom: 0;
-    align: left middle;
 }
 
-.lane-title {
+.lane-cell {
     width: 1fr;
-    color: #f8f8f2;
+    height: 1;
+    padding: 0 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.lane-cell.cell-doing, .lane-cell.cell-done {
+    border-left: solid $foreground 40%;
 }
 
 .lane-description {
-    height: 1;
-    color: #6272a4;
-    text-wrap: nowrap;
-    text-overflow: ellipsis;
+    color: $text-muted;
 }
 
 .lane-body {
@@ -106,31 +107,37 @@ Lane.paused-lane TaskCard.selected {
    1 de contenido + borde) y pagina el resto (ver Column en column.py). */
 Column {
     width: 1fr;
-    height: auto;
+    height: 16;
     padding: 0 1;
+}
+
+/* Separador vertical bien visible entre columnas. */
+Column.column-doing, Column.column-done {
+    border-left: solid $foreground 40%;
 }
 
 .column-pager {
     height: 1;
-    color: #6272a4;
+    color: $text-muted;
     content-align: center middle;
     width: 1fr;
 }
 
+/* Ojo: en Textual `padding-bottom` solo resetea también los otros lados. */
 Lane.active-lane {
-    padding-bottom: 1;
+    padding: 0 1 1 1;
 }
 
 .empty-hint {
-    color: #6272a4;
+    color: $text-muted;
     height: 3;
     padding: 0 1;
-    border: round #3a3d4e;
+    border: round $foreground 20%;
 }
 
 .empty-hint.selected {
-    color: #ff79c6;
-    border: heavy #ff79c6;
+    color: $accent;
+    border: heavy $accent;
 }
 
 /* Borde suave en cada tarjeta para separar visualmente una tarea de otra. */
@@ -139,60 +146,58 @@ TaskCard {
     height: 3;
     padding: 0 1;
     background: transparent;
-    color: #f8f8f2;
+    color: $foreground;
     text-wrap: nowrap;
     text-overflow: ellipsis;
-    border: round #44475a;
+    border: round $foreground 25%;
 }
 
-/* Bloqueada por otra tarea del mismo objetivo: roja fija, no se puede pillar */
+/* Alertas: cada una con su forma de borde izquierdo, para distinguirlas
+   también en blanco y negro. Nada parpadea ni cambia de color: solo
+   cambia la forma del borde (el color de la línea lo pone el tema).
+   Bloqueada: doble ║ */
 TaskCard.alert-blocked {
-    color: #ff9580;
-    border-left: thick #ff5555;
-    text-style: bold;
+    border-left: double $error;
 }
 
-/* Lleva demasiados días en progreso: morada fija, toca cerrarla o partirla */
+/* Atascada en progreso: discontinuo ╏ */
 TaskCard.alert-stuck {
-    color: #d6acff;
-    border-left: thick #bd93f9;
+    border-left: dashed $secondary;
 }
 
-/* Expedito: rojo fijo */
+/* Expedito: bloque lleno █ */
 TaskCard.alert-urgent {
-    color: #ffb3a0;
-    border-left: thick #ff5555;
+    border-left: block $error;
 }
 
-/* Fecha límite próxima: ámbar fijo */
+/* Fecha límite próxima: grueso ┃ */
 TaskCard.alert-approaching {
-    border-left: thick #ffb86c;
+    border-left: heavy $warning;
 }
 
-/* Vencida: marca roja fija (sin parpadeo) */
+/* Vencida: medio bloque ▌ */
 TaskCard.alert-overdue {
-    border-left: thick #ff5555;
-    color: #ffbdb0;
+    border-left: outer $error;
 }
 
-/* Prioridad baja: marca verde fija */
+/* Prioridad baja: ascii | */
 TaskCard.alert-low {
-    border-left: thick #50fa7b;
+    border-left: ascii $success;
 }
 
-/* Tarea seleccionada: borde rosa grueso en tres lados; el lado izquierdo
+/* Tarea seleccionada: borde grueso (color de acento del tema) en tres lados; el lado izquierdo
    conserva el color de alerta (si lo hay) para no perder esa información. */
 TaskCard.selected {
-    background: #44475a;
-    color: #ff79c6;
+    background: $boost;
+    color: $accent;
     text-style: bold;
-    border-top: heavy #ff79c6;
-    border-right: heavy #ff79c6;
-    border-bottom: heavy #ff79c6;
+    border-top: heavy $accent;
+    border-right: heavy $accent;
+    border-bottom: heavy $accent;
 }
 
 TaskCard.selected.alert-normal {
-    border-left: heavy #ff79c6;
+    border-left: heavy $accent;
 }
 
 TaskFormScreen, ConfirmScreen {
@@ -202,8 +207,8 @@ TaskFormScreen, ConfirmScreen {
 #form-dialog, #confirm-dialog {
     height: auto;
     max-height: 96%;
-    background: #313442;
-    border: round #bd93f9;
+    background: $surface;
+    border: round $primary;
     padding: 1 2;
 }
 
@@ -218,7 +223,7 @@ TaskFormScreen, ConfirmScreen {
 
 #form-title {
     text-style: bold;
-    color: #f8f8f2;
+    color: $foreground;
     padding-bottom: 1;
 }
 
@@ -228,20 +233,20 @@ TaskFormScreen, ConfirmScreen {
 
 #f-description {
     height: 10;
-    border: round #44475a;
+    border: round $foreground 25%;
     margin-bottom: 1;
 }
 
 #f-acceptance-criteria {
     height: 10;
-    border: round #44475a;
+    border: round $foreground 25%;
     margin-bottom: 1;
 }
 
 #form-body Label {
     height: 1;
     margin: 0;
-    color: #6272a4;
+    color: $text-muted;
 }
 
 #form-body Input {
@@ -274,7 +279,7 @@ TaskFormScreen, ConfirmScreen {
 }
 
 #form-error {
-    color: #ff5555;
+    color: $error;
     height: auto;
     padding-top: 1;
 }
@@ -290,19 +295,19 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
 #objectives-dialog, #metrics-dialog, #summary-dialog, #recurring-dialog {
     width: 94%;
     height: 94%;
-    background: #313442;
-    border: round #bd93f9;
+    background: $surface;
+    border: round $primary;
     padding: 1 2;
 }
 
 #objectives-title, #metrics-title, #summary-title, #recurring-title {
     text-style: bold;
-    color: #f8f8f2;
+    color: $foreground;
     padding-bottom: 1;
 }
 
 #summary-stats {
-    color: #6272a4;
+    color: $text-muted;
     padding-bottom: 1;
 }
 
@@ -311,13 +316,13 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
 }
 
 .summary-task {
-    color: #f8f8f2;
+    color: $foreground;
     height: auto;
     margin-bottom: 1;
 }
 
 #objectives-hint, #recurring-hint {
-    color: #6272a4;
+    color: $text-muted;
     padding-bottom: 1;
 }
 
@@ -349,7 +354,7 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
 }
 
 #recurring-error {
-    color: #ff5555;
+    color: $error;
     height: auto;
     padding-bottom: 1;
 }
@@ -373,12 +378,12 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
 
 .recurring-row-name {
     width: 1fr;
-    color: #f8f8f2;
+    color: $foreground;
 }
 
 .recurring-row-description {
     height: 1;
-    color: #6272a4;
+    color: $text-muted;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
@@ -389,8 +394,8 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
     height: 1;
     padding: 0 1;
     border: none;
-    background: #44475a;
-    color: #ffb86c;
+    background: $panel;
+    color: $warning;
     margin-left: 1;
 }
 
@@ -420,7 +425,8 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
 }
 
 .objective-row.selected-row {
-    background: #44475a;
+    background: $boost;
+    color: $accent;
 }
 
 .objective-row-header {
@@ -430,19 +436,19 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
 
 .objective-row-name {
     width: 1fr;
-    color: #f8f8f2;
+    color: $foreground;
 }
 
 .objective-row-description {
     height: 1;
-    color: #6272a4;
+    color: $text-muted;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
 
 .objective-row-reason {
     height: 1;
-    color: #6272a4;
+    color: $text-muted;
     text-style: italic;
     text-wrap: nowrap;
     text-overflow: ellipsis;
@@ -454,12 +460,12 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
     height: 1;
     padding: 0 1;
     border: none;
-    background: #44475a;
-    color: #ffb86c;
+    background: $panel;
+    color: $warning;
 }
 
 #objectives-error {
-    color: #ff5555;
+    color: $error;
     height: auto;
     padding-top: 1;
 }
@@ -472,12 +478,12 @@ ObjectivesScreen, MetricsScreen, ObjectiveSummaryScreen, RecurringScreen {
 
 .metrics-section {
     text-style: bold;
-    color: #6272a4;
+    color: $text-muted;
     padding-top: 1;
 }
 
 .metrics-row {
-    color: #f8f8f2;
+    color: $foreground;
     height: 1;
 }
 
@@ -492,14 +498,14 @@ SettingsScreen {
 #settings-dialog {
     width: 94%;
     height: 94%;
-    background: #313442;
-    border: round #bd93f9;
+    background: $surface;
+    border: round $primary;
     padding: 1 2;
 }
 
 #settings-title {
     text-style: bold;
-    color: #f8f8f2;
+    color: $foreground;
     padding-bottom: 1;
 }
 
@@ -510,7 +516,7 @@ SettingsScreen {
 #settings-body Label {
     height: 1;
     margin: 0;
-    color: #6272a4;
+    color: $text-muted;
 }
 
 #settings-body Input {
@@ -518,19 +524,19 @@ SettingsScreen {
 }
 
 .settings-hint {
-    color: #6272a4;
+    color: $text-muted;
     height: auto;
     margin-bottom: 1;
 }
 
 .settings-section {
     text-style: bold;
-    color: #6272a4;
+    color: $text-muted;
     padding-top: 1;
 }
 
 #settings-error {
-    color: #ff5555;
+    color: $error;
     height: auto;
 }
 
@@ -551,14 +557,14 @@ TaskDetailScreen {
 #detail-dialog {
     width: 94%;
     height: 94%;
-    background: #313442;
-    border: round #bd93f9;
+    background: $surface;
+    border: round $primary;
     padding: 1 2;
 }
 
 #detail-title {
     text-style: bold;
-    color: #f8f8f2;
+    color: $foreground;
     padding-bottom: 1;
 }
 
@@ -567,13 +573,13 @@ TaskDetailScreen {
 }
 
 .detail-block {
-    color: #f8f8f2;
+    color: $foreground;
     height: auto;
     margin-bottom: 1;
 }
 
 .detail-comment {
-    color: #f8f8f2;
+    color: $foreground;
     height: auto;
     margin-bottom: 1;
     padding-left: 1;
@@ -592,4 +598,51 @@ TaskDetailScreen {
 #detail-comment-input {
     width: 1fr;
     margin-right: 1;
+}
+
+WipScreen {
+    align: center middle;
+}
+
+#wip-dialog {
+    width: 94%;
+    height: 94%;
+    background: $surface;
+    border: round $primary;
+    padding: 1 2;
+}
+
+#wip-title {
+    text-style: bold;
+    color: $foreground;
+    padding-bottom: 1;
+}
+
+#wip-hint {
+    color: $text-muted;
+    padding-bottom: 1;
+}
+
+#wip-body {
+    height: 1fr;
+}
+
+.wip-row {
+    height: 3;
+    padding: 0 1;
+    color: $foreground;
+    border: round $foreground 25%;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.wip-row.selected {
+    background: $boost;
+    color: $accent;
+    text-style: bold;
+    border: heavy $accent;
+}
+
+#objectives-actions Button, #recurring-actions Button {
+    margin-left: 1;
 }

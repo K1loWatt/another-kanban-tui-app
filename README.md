@@ -12,16 +12,31 @@ The board renders as one big minimalist table. Only the **active lane**
 shows its tasks; every other lane collapses to its title line (with its
 counts), so switching lanes is instant and the screen stays readable.
 
-Each column (Pendientes/En progreso/Hecho) shows at most **5** tasks per
-page, with no scrolling. When a column has more, a `pág 1/3 · 12 tareas`
-line appears under it: `↑`/`↓` flip to the next/previous page when you go
-past the edge, and `pageup` / `pagedown` jump a whole page. Color scheme is
-[Dracula](https://draculatheme.com/) (scrollbars included).
+Each column (Pendientes/En progreso/Hecho) always takes the height of
+**5** tasks, with no scrolling, so the lane never changes height while
+you page. When a column has more, a `pág 1/2 · 8 tareas` line appears
+under it: `↑`/`↓` flip to the next/previous page when you go past the edge,
+and `pageup` / `pagedown` jump a whole page. Every page is full: the last
+one shows the last 5 tasks, overlapping the previous page if needed (with
+8 tasks: 1–5, then 4–8). Columns are split by a vertical line.
+
+Colors come entirely from **Textual themes**: the app has no colors of its
+own, every border, alert and label uses the active theme's variables
+(`$primary`, `$accent`, `$error`, `$warning`, `$success`, …). Pick a theme
+with the command palette (`ctrl+p` → change theme). The default is the
+app's own **`kanban-high-contrast`** theme — pure **black and white**, no
+other color at all — defined in
+[`src/kanban_tui/themes.py`](src/kanban_tui/themes.py) as a Textual `Theme`
+and registered with `App.register_theme`, so it sits in the theme list
+next to Textual's built-ins (textual-dark, nord, gruvbox, tokyo-night,
+catppuccin, dracula, solarized, rose-pine, …). To add another theme, add a
+`Theme` to `CUSTOM_THEMES` in that file. The choice is remembered per
+machine in `~/.config/kanban-tui/config.json` (`"theme"`).
 
 Every task card has a soft rounded border so neighbouring tasks are easy
-to tell apart. The selected task gets a thick pink border (its left edge
+to tell apart. The selected task gets a thick border in the theme's accent color (its left edge
 keeps the alert color, if any); in an empty column the "Sin tareas" placeholder
-gets that pink border instead, so the cursor never gets lost.
+gets that border instead, so the cursor never gets lost.
 
 Every popup (task form, objectives, settings, metrics, summary, task detail)
 opens almost full-screen (94% of the terminal) so there's room to work
@@ -32,37 +47,40 @@ The task form's Descripción and Criterio de aceptación fields are a full
 **10 lines** each (there's real writing room to describe acceptance
 criteria properly).
 
-The app's title bar shows the installed version (`Tablero Kanban v1.4.0`),
+The app's title bar shows the installed version (`Tablero Kanban v1.5.0`),
 so you can always tell which build you're on at a glance. See
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 Column titles (`PENDIENTES` / `EN PROGRESO` / `HECHO`) are printed once, in a
 pinned header row at the top of the dashboard — they aren't repeated per
-lane. A single horizontal rule separates one lane from the next (brighter
-when that lane is the active one); task rows within a lane keep a consistent,
-tight vertical rhythm with no extra spacing. Each lane's own title line
-carries its per-column counts and, when paused, its ⏸ apagado badge (e.g.
-`🎯 General · P3 · Pend 2 · Prog 1 · Hecho 4 · ⏸ apagado`). Right under the
+lane. Two **continuous vertical lines** split the three columns from the
+header row to the bottom of the board, crossing every lane, so the
+separation never breaks between objectives. A horizontal rule separates
+one lane from the next (heavy for the active one). Each lane's title row is
+split into the same three cells: the name with its freshness meter,
+priority and backlog count under Pendientes, `Prog N` under En progreso and
+`Hecho N` under Hecho (e.g. `General ▕██████░░▏ fresco · P3 · Pend 2 │
+Prog 1 │ Hecho 4`). A paused lane shows `(apagado)` instead of the meter. Right under the
 header, a single centered stats banner — on a subtly different background
 so it stands out from the rest of the dashboard without being loud — rolls
 up the board's three global indicators in one line: the global WIP counter
-(e.g. `WIP global: 1/1`, see [WIP limit](#wip-limit)), the 💡 Intangibles
+(e.g. `WIP global: 1/1`, see [WIP limit](#wip-limit)), the Intangibles
 pendientes counter (a purely informational tally, not a limit, of how many
 Intangible tasks you're "behind" on, computed as (Estándar/Fecha
 fija/Expedito tasks already Hecho) minus (Intangible tasks already Hecho)
-across the whole board), and 🔋 Recarga Energía (see [Recarga
+across the whole board), and Recarga Energía (see [Recarga
 Energía](#recarga-energía)). A paused objective's whole lane — title, description, every card — renders
 in grey, regardless of any alert color it would otherwise have; it's still
 fully editable, just visually out of the way.
 
-Each card is a single line: service-class icon, title, type and labels —
+Each card is a single line: title, type and labels — no emojis anywhere in the UI —
 
 ```
-🔥 Fix production outage on payments API   Expedito   bug
+Fix production outage on payments API   Expedito   bug
 ```
 
-Press `v` on a task for its full detail (description, acceptance criteria,
-due date, comments; see [Task detail & comments](#task-detail--comments-v)),
+Press `d` on a task for its full detail (description, acceptance criteria,
+due date, comments; see [Task detail & comments](#task-detail--comments-d)),
 or `s` for the full text of every task in the active lane (see
 [Objective summary](#objective-summary-s)).
 
@@ -102,23 +120,21 @@ Lanes are sorted by **objective priority** (0 = highest, shown first), then
 by creation date. Objective priority is independent from each task's own
 `priority` field.
 
-### Lane freshness color
+### Lane freshness meter
 
-Each objective lane's top border — plus a very faint matching tint across
-the whole lane's background — is colored on a **green → red gradient**
-reflecting how overdue it is for finishing a task, scaled by its own
-priority: higher-priority lanes need a task done more often to stay green.
+Next to each objective's name there's a block meter, `▕████████▏ fresco`,
+that shows how overdue the lane is for finishing a task, scaled by its own
+priority: higher-priority lanes need a task done more often to stay full.
 Concretely, every priority level doubles the expected cadence versus the
-one above it — P0 needs a task Hecho **daily** to stay green, P1 every 2
-days, P2 every 4, P3 every 8, P4 every 16, P5 every 32 — and both the
-border and the background tint smoothly interpolate from green to red as
-the days since the lane's last completed task (or, if it has none yet,
-since the objective was created) go from 0 to that cadence; past the
-cadence it just stays solid red. The active lane's border also renders
-**heavy** instead of thin so you can still tell which one you're on
-regardless of its color. This is purely visual — it doesn't block or gate
-anything, unlike the WIP limit. Paused lanes are unaffected and stay all
-grey, as always.
+one above it — P0 needs a task Hecho **daily** to stay full, P1 every 2
+days, P2 every 4, P3 every 8, P4 every 16, P5 every 32 — and the meter
+empties as the days since the lane's last completed task (or, if it has
+none yet, since the objective was created) go from 0 to that cadence. A
+word next to it sums it up: **fresco** (full, what used to be green),
+**tibio** (half-way) and **frío** (empty, what used to be red). It's plain
+text, so it reads the same in black and white or any theme. This is purely
+visual — it doesn't block or gate anything, unlike the WIP limit. Paused
+lanes show `(apagado)` instead.
 
 Each lane has its own `Backlog` → `Doing` → `Done` columns. A task's column
 is just a `status` field inside its markdown frontmatter — the file never
@@ -159,7 +175,7 @@ one moves on. Both limits are configurable from the settings panel
 
 There's no cadence rule or limit around Intangible tasks — any task can
 move or be created into `Doing` regardless of how many Intangibles you've
-done lately. Instead, the `💡 Intangibles pendientes: n` counter in the top
+done lately. Instead, the `Intangibles pendientes: n` counter in the top
 bar is a purely informational tally across the whole board: (Estándar/Fecha
 fija/Expedito tasks already Hecho) minus (Intangible tasks already Hecho).
 It's recomputed on every reload directly from task history — nothing to
@@ -171,7 +187,7 @@ A task can be marked as **blocked by** another task in the same objective
 (set from the task form's "Bloqueada por" field, which only lists siblings
 of the currently selected objective). While its blocker isn't Hecho yet,
 the blocked task renders with a **red** border on the board (open it with
-`v` to see which task is blocking it) and it cannot be moved or created into `Doing` (same check in the quick
+`d` to see which task is blocking it) and it cannot be moved or created into `Doing` (same check in the quick
 move shortcuts and in the form). Once the blocker is marked Hecho, the
 block clears automatically; nothing needs to be unset by hand.
 
@@ -216,18 +232,30 @@ Press `s` to open a read-only summary of the **active lane**: its stats
 full, untruncated Resumen and Criterio de aceptación — the detail view for
 the compact `|_` nodes shown on the board itself.
 
-## Task detail & comments (`v`)
+## Task detail & comments (`d`)
 
-Press `v` on the selected task to open a read-only detail view — full
+Press `d` on the selected task to open a read-only detail view — full
 Resumen, Criterio de aceptación, and its comment thread — without entering
 the edit form. It also has a small input to append a new comment on the
 spot; comments are timestamped and saved straight into the task's own `.md`
 file (under a `## Comentarios` section), so they sync with the rest of the
 task and need no separate storage.
 
-## Archiving tasks (`d`)
+## Trabajo en curso (`F12`)
 
-Press `d` on the selected task to archive it (asks to confirm first). An
+`F12` opens a list of **every task In progress**, across all lanes (each
+row shows its objective). Inside it:
+
+| Key | Action |
+|---|---|
+| `↑/k` `↓/j` | Select a task |
+| `d` | Open its detail view: full text, comments, and add a comment |
+| `x` | Mark it Hecho (it leaves the list immediately) |
+| `escape` / `F12` | Close the panel |
+
+## Archiving tasks (`v`)
+
+Press `v` on the selected task to archive it (asks to confirm first). An
 archived task disappears from the board, from metrics, from WIP counts and
 from every other lane calculation — but its `.md` file is **never deleted**
 from disk, ever; archiving just sets an `archived: true` flag in its
@@ -250,7 +278,7 @@ folder).
 ### Recarga Energía
 
 The last segment of the stats banner described above — a **bold
-percentage** followed by a short bar (e.g. `🔋 Recarga Energía — 62%
+percentage** followed by a short bar (e.g. `Recarga Energía — 62%
 ████████████░░░░░░░░░░░░`), both colored on a **red → yellow → green**
 gradient — shows the aggregate health of everything tracked in Recarga.
 For each
@@ -316,7 +344,7 @@ due_date: 2026-10-10        # optional; required only for fixed_date tasks
 started_at:                 # set automatically the first time it enters Doing
 completed_at:
 blocked_by: ""              # id of another task in the same objective, or empty
-archived: false              # true once archived with `d` — the file is never deleted
+archived: false              # true once archived with `v` — the file is never deleted
 created_at: 2026-10-08 09:15:00
 updated_at: 2026-10-09 08:00:00
 ---
@@ -330,7 +358,7 @@ save a task without it.
 
 ## Comentarios
 
-- 2026-10-27 09:15 — First comment, added from the task detail view (`v`).
+- 2026-10-27 09:15 — First comment, added from the task detail view (`d`).
 - 2026-10-27 09:20 — Second comment; a multi-line one continues on the next
   lines, indented two spaces.
 ```
@@ -342,7 +370,7 @@ line per comment (continuation lines of a multi-line comment are indented).
 The form requires acceptance criteria for every task (new or edited); older
 files without it just show "(sin criterio de aceptación)" on the board
 until you fill it in. Comments are optional and only added via the task
-detail view (`v`), never required.
+detail view (`d`), never required.
 
 Older files with a legacy `type: normal|deadline|urgent` field are migrated
 transparently on read (`normal`→Estándar, `deadline`→Fecha fija,
@@ -361,25 +389,28 @@ sortable by filename/grep and keeps the files portable.
 
 ## Alerts & board styling
 
-Each card shows one alert state (checked in this order, only one applies):
+Each card shows one alert state (checked in this order, only one applies),
+marked by the **shape of its left border** so it reads in black and white
+(themes with color also tint it):
 
-1. **Blocked** by another unfinished task in the same objective — solid
-   red border, bold.
-2. **Expedito** — solid **red** border.
-3. **Stuck in progress** (`Doing` for N+ days, default 5) — solid **purple**
-   border.
+1. **Blocked** by another unfinished task in the same objective — double
+   line `║`, bold (error color).
+2. **Expedito** — full block `█` (error color).
+3. **Stuck in progress** (`Doing` for N+ days, default 5) — dashed `╏`
+   (secondary color).
 4. **Approaching due date** — due within N days (default 3) and not done —
-   solid **amber** border.
-5. **Overdue** — due date in the past and not done — solid red border.
-6. **Low priority** (`priority` 4 or 5) — solid green border.
-7. Otherwise — plain default styling.
+   heavy line `┃` (warning color).
+5. **Overdue** — due date in the past and not done — half block `▌`
+   (error color).
+6. **Low priority** (`priority` 4 or 5) — ascii `|` (success color).
+7. Otherwise — plain rounded border.
 
 A paused objective's lane overrides all of the above to plain grey (see
 [Swimlanes](#swimlanes)) — the alert state is still computed and still
-affects move/create rules, it just isn't painted in color while parked.
+affects move/create rules, it just isn't painted while parked.
 
 Priority is a 0–5 scale (0 = highest, 5 = lowest); it isn't printed on
-the card (see it with `v`). Labels are shown as colored chips.
+the card (see it with `d`). Labels are shown as colored chips.
 
 Within a lane, tasks whose due date is approaching/overdue and are
 Fecha-fija sort to the top; otherwise sorted by soonest due date, then
@@ -460,9 +491,10 @@ KANBAN_TUI_TASKS_DIR=./tasks poetry run kanban-tui
 | `shift+tab` | Switch to the previous lane (moves focus to the previous field instead, if a popup is open) |
 | `n` | New task (created in the active lane/column) |
 | `enter` / `e` | Edit selected task |
-| `v` | View the selected task's full detail + comments (read-only) and add a comment |
+| `d` | View the selected task's full detail + comments (read-only) and add a comment |
 | `f` | Mark the selected task Hecho and immediately open the popup to create the next backlog task in the same lane |
-| `d` | Archive selected task (asks to confirm) — see [Archiving tasks](#archiving-tasks-d) |
+| `F12` | Open the Trabajo en curso panel (every In-progress task, all lanes) — see [Trabajo en curso](#trabajo-en-curso-f12) |
+| `v` | Archive selected task (asks to confirm) — see [Archiving tasks](#archiving-tasks-v) |
 | `,` | Move task back one column: Hecho → En progreso → Pendientes |
 | `.` | Move task forward one column: Pendientes → En progreso → Hecho (checks WIP/bloqueo) |
 | `c` | Close the active lane — always asks to confirm |

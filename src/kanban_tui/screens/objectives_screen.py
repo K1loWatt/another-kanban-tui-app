@@ -49,7 +49,7 @@ class ObjectivesScreen(ModalScreen[bool]):
             )
             yield Static(
                 "↑/↓ seleccionar fila · c cerrar · r reabrir · p apagar/encender · b borrar · "
-                "+/- prioridad · enter en Añadir crea uno",
+                "+/- prioridad · el último tab es «Crear objetivo»",
                 id="objectives-hint",
             )
             yield VerticalScroll(id="objectives-body")
@@ -58,12 +58,13 @@ class ObjectivesScreen(ModalScreen[bool]):
                 yield Select(
                     PRIORITY_OPTIONS, value=PRIORITY_DEFAULT, id="obj-new-priority", allow_blank=False
                 )
-                yield Button("Añadir", id="obj-new-btn", variant="success")
             yield Input(placeholder="Descripción del objetivo *", id="obj-new-description")
             yield Input(placeholder="Por qué (opcional)", id="obj-new-reason")
             yield Static("", id="objectives-error")
             with Horizontal(id="objectives-actions"):
                 yield Button("Cerrar ventana", id="obj-done", variant="default")
+                # Último de la cadena de tab: rellenar campos -> crear.
+                yield Button("Crear objetivo", id="obj-new-btn", variant="success")
 
     async def on_mount(self) -> None:
         await self.refresh_rows()
@@ -87,11 +88,11 @@ class ObjectivesScreen(ModalScreen[bool]):
             return
         for objective in self.rows:
             if objective.is_active:
-                badge = "🟢 activo"
+                badge = "(activo)"
             elif objective.is_paused:
-                badge = "⏸ apagado"
+                badge = "(apagado)"
             else:
-                badge = "⚪ cerrado"
+                badge = "(cerrado)"
             row = Vertical(classes="objective-row", id=f"obj-row-{objective.id}")
             body.mount(row)
             header_row = Horizontal(classes="objective-row-header")

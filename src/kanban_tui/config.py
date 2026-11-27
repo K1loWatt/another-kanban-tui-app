@@ -63,6 +63,33 @@ def save_tasks_dir(path: Path) -> None:
     CONFIG_PATH.write_text(json.dumps(data, indent=2))
 
 
+DEFAULT_THEME = "kanban-high-contrast"  # ver themes.py
+
+
+def _read_config() -> dict:
+    if CONFIG_PATH.exists():
+        try:
+            return json.loads(CONFIG_PATH.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def get_theme() -> str:
+    """Tema de Textual elegido (desde la paleta de comandos, `ctrl+p`).
+    Se guarda por máquina, no en la carpeta de tareas sincronizada."""
+    return _read_config().get("theme") or DEFAULT_THEME
+
+
+def save_theme(name: str) -> None:
+    data = _read_config()
+    if data.get("theme") == name:
+        return
+    data["theme"] = name
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(data, indent=2))
+
+
 def _write_default_config() -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(

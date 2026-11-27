@@ -8,13 +8,6 @@ from ..colors import label_color
 from ..models import ServiceClass, Status, Task
 from ..settings import BoardSettings
 
-SERVICE_CLASS_ICON = {
-    ServiceClass.EXPEDITE: "\U0001f525",
-    ServiceClass.FIXED_DATE: "⏰",
-    ServiceClass.STANDARD: "\U0001f4cb",
-    ServiceClass.INTANGIBLE: "\U0001f4a1",
-}
-
 SERVICE_CLASS_NAME = {
     ServiceClass.EXPEDITE: "Expedito",
     ServiceClass.FIXED_DATE: "Fecha fija",
@@ -53,11 +46,10 @@ def compute_alert(task: Task, blocking_task: Task | None, settings: BoardSetting
 
 
 def card_markup(task: Task) -> str:
-    """Una sola línea: icono + título + tipo + etiquetas."""
+    """Una sola línea: título + tipo + etiquetas. Sin emojis."""
     bits = [
-        SERVICE_CLASS_ICON[task.service_class],
         f"[bold]{escape(task.title)}[/bold]",
-        f"[dim]{SERVICE_CLASS_NAME[task.service_class]}[/dim]",
+        f"[$text-muted]{SERVICE_CLASS_NAME[task.service_class]}[/]",
     ]
     if task.labels:
         bits.append(" ".join(f"[{label_color(l)}]{escape(l)}[/]" for l in task.labels))

@@ -139,22 +139,3 @@ def recurring_health(tasks: list[RecurringTask], today: date | None = None) -> f
     average = sum(_item_score(t, today) for t in tasks) / len(tasks)
     return max(0.0, min(1.0, average))
 
-
-# Degradado rojo -> amarillo -> verde para mostrar la salud de Recarga.
-_LOW_RED = (255, 85, 85)  # #ff5555
-_MID_YELLOW = (255, 184, 108)  # #ffb86c
-_HIGH_GREEN = (80, 250, 123)  # #50fa7b
-
-
-def health_color(health: float) -> str:
-    health = max(0.0, min(1.0, health))
-    if health >= 0.5:
-        t = (health - 0.5) / 0.5
-        c1, c2 = _MID_YELLOW, _HIGH_GREEN
-    else:
-        t = health / 0.5
-        c1, c2 = _LOW_RED, _MID_YELLOW
-    r = round(c1[0] + (c2[0] - c1[0]) * t)
-    g = round(c1[1] + (c2[1] - c1[1]) * t)
-    b = round(c1[2] + (c2[2] - c1[2]) * t)
-    return f"#{r:02x}{g:02x}{b:02x}"

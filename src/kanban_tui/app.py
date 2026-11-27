@@ -10,7 +10,7 @@ from textual.css.query import NoMatches
 from textual.widgets import Footer, Header, Static
 
 from . import __version__, objectives, recurring, storage, wip_rules
-from .config import get_tasks_dir
+from .config import DEFAULT_THEME, get_tasks_dir, get_theme, save_theme
 from .models import ServiceClass, Status, Task
 from .screens.confirm import ConfirmScreen
 from .screens.metrics_screen import MetricsScreen
@@ -20,12 +20,30 @@ from .screens.recurring_screen import RecurringScreen
 from .screens.settings_screen import SettingsScreen
 from .screens.task_detail_screen import TaskDetailScreen
 from .screens.task_form import TaskFormScreen
+from .screens.wip_screen import WipScreen
 from .settings import load_settings
+from .themes import CUSTOM_THEMES
 from .widgets.column import STATUS_TITLES
 from .widgets.lane import STATUS_ORDER, Lane
 
 
 STATS_BAR_WIDTH = 20
+
+
+class BoardHeader(Horizontal):
+    """Fila de títulos de columna. Al cambiar de tamaño (ya con el layout
+    nuevo calculado) recoloca las líneas verticales del tablero."""
+
+    def on_resize(self, event) -> None:
+        self.app._place_separators()
+
+
+class Board(VerticalScroll):
+    """El tablero con los carriles. Si solo cambia de alto (la fila de títulos
+    no se entera), también recoloca las líneas verticales."""
+
+    def on_resize(self, event) -> None:
+        self.app._place_separators()
 
 
 class KanbanApp(App):
@@ -36,9 +54,10 @@ class KanbanApp(App):
 
     BINDINGS = [
         Binding("n", "new_task", "Nueva"),
-        Binding("enter,e", "edit_task", "Editar"),
-        Binding("v", "view_task", "Ver detalle"),
-        Binding("d", "delete_task", "Archivar"),
+        Binding("enter,e", "edit_task", "Editar", key_display="enter"),
+        Binding("d", "view_task", "Detalle"),
+        Binding("v", "delete_task", "Archivar"),
+        Binding("f12", "show_wip", "En curso"),
         Binding("left,h", "focus_left", "Columna", show=True),
         Binding("right,l", "focus_right", "Columna", show=False),
         Binding("up,k", "focus_up", "Arriba", show=False),
@@ -63,7 +82,12 @@ class KanbanApp(App):
 
     def __init__(self, tasks_dir: Path | None = None) -> None:
         super().__init__()
-        self.theme = "dracula"
+        # Solo temas de Textual (se cambian con ctrl+p); el elegido se
+        # recuerda en ~/.config/kanban-tui/config.json.
+        for custom_theme in CUSTOM_THEMES:
+            self.register_theme(custom_theme)
+        theme = get_theme()
+        self.theme = theme if theme in self.available_themes else DEFAULT_THEME
         self.tasks_dir = tasks_dir or get_tasks_dir()
         storage.ensure_tasks_dir(self.tasks_dir)
         objectives.ensure_default_objective(self.tasks_dir)
@@ -77,12 +101,14 @@ class KanbanApp(App):
         self._health = 1.0
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Header(icon="≡")
         yield Static("", id="stats-banner")
-        with Horizontal(id="board-header"):
+        with BoardHeader(id="board-header"):
             for status in STATUS_ORDER:
-                yield Static(STATUS_TITLES[status], classes="board-col-header")
-        with VerticalScroll(id="board"):
+                yield Static(
+                    STATUS_TITLES[status], classes=f"board-col-header header-{status.value}"
+                )
+        with Board(id="board"):
             for objective in self._visible_objectives():
                 yield Lane(
                     objective.id,
@@ -95,6 +121,11 @@ class KanbanApp(App):
                     id=f"lane-{objective.id}",
                 )
         yield Footer()
+        for status in STATUS_ORDER[1:]:
+            yield Static("", classes="col-separator", id=f"sep-{status.value}")
+
+    def watch_theme(self, theme: str) -> None:
+        save_theme(theme)
 
     def on_mount(self) -> None:
         self.title = f"Tablero Kanban v{__version__}"
@@ -103,6 +134,25 @@ class KanbanApp(App):
         self._lanes = list(self.query(Lane))
         self.reload_tasks()
         self.set_interval(5.0, self._check_external_changes)
+        self.call_after_refresh(self._place_separators)
+
+    def _place_separators(self) -> None:
+        """Coloca las dos líneas verticales justo sobre el borde izquierdo de
+        las columnas En progreso / Hecho, desde la fila de títulos hasta el
+        final del tablero, para que la separación sea continua entre carriles."""
+        try:
+            header = self.query_one("#board-header")
+            board = self.query_one("#board", VerticalScroll)
+        except NoMatches:
+            return
+        top = header.region.y
+        height = max(1, board.region.bottom - top)
+        for status in STATUS_ORDER[1:]:
+            sep = self.query_one(f"#sep-{status.value}", Static)
+            cell = header.query_one(f".header-{status.value}")
+            sep.styles.offset = (cell.region.x, top)
+            sep.styles.height = height
+            sep.update("\n".join("│" * height))
 
     def _active_objectives(self) -> list[objectives.Objective]:
         return sorted(
@@ -135,9 +185,15 @@ class KanbanApp(App):
         # Sin carriles (todos los objetivos cerrados o borrados) estas acciones
         # no tienen sobre qué actuar. Con un popup abierto, jump/next/prev
         # siguen funcionando (scroll / cambio de campo).
-        if action in self._LANE_ACTIONS and not self._modal_active and not self.lanes:
+        if self._modal_active:
+            # Con un popup abierto, las teclas del tablero (n, d, v, ...) no
+            # deben actuar por debajo; solo las que el popup reutiliza.
+            return action in self._MODAL_ACTIONS
+        if action in self._LANE_ACTIONS and not self.lanes:
             return False
         return True
+
+    _MODAL_ACTIONS = {"jump_up", "jump_down", "prev_lane", "next_lane", "quit"}
 
     @property
     def lanes(self) -> list[Lane]:
@@ -174,16 +230,15 @@ class KanbanApp(App):
         doing_global: int, global_wip_limit: int, intangible_debt: int, health: float
     ) -> str:
         wip_text = (
-            f"[bold #6272a4]WIP global: {doing_global}/{global_wip_limit}[/]"
+            f"[bold]WIP global: {doing_global}/{global_wip_limit}[/]"
             if doing_global < global_wip_limit
-            else f"[bold #ff5f56]WIP global: {doing_global}/{global_wip_limit} (al límite)[/]"
+            else f"[bold $error]WIP global: {doing_global}/{global_wip_limit} (al límite)[/]"
         )
-        intangible_text = f"[bold #ffb86c]💡 Intangibles pendientes: {intangible_debt}[/]"
-        color = recurring.health_color(health)
+        intangible_text = f"[bold]Intangibles pendientes: {intangible_debt}[/]"
         pct = round(health * 100)
         filled = round(health * STATS_BAR_WIDTH)
         bar = "█" * filled + "░" * (STATS_BAR_WIDTH - filled)
-        health_text = f"🔋 Recarga Energía — [bold {color}]{pct}%[/]  [{color}]{bar}[/]"
+        health_text = f"Recarga Energía — [bold]{pct}%[/]  {bar}"
         return f"{wip_text}   ·   {intangible_text}   ·   {health_text}"
 
     def reload_tasks(self, keep_selection: bool = False) -> None:
@@ -383,10 +438,7 @@ class KanbanApp(App):
         if task is None:
             return
 
-        task.status = Status.DONE
-        if task.completed_at is None:
-            task.completed_at = date.today()
-        self._commit_task(task)
+        self.mark_task_done(task)
 
         default_objective = lane.title_text
         objective_names = [o.name for o in self._visible_objectives()]
@@ -409,6 +461,22 @@ class KanbanApp(App):
             ),
             handle,
         )
+
+    def mark_task_done(self, task: Task) -> None:
+        task.status = Status.DONE
+        if task.completed_at is None:
+            task.completed_at = date.today()
+        self._commit_task(task)
+
+    def action_show_wip(self) -> None:
+        visible = {lane.title_text for lane in self.lanes}
+        doing = [t for t in self._tasks if t.status == Status.DOING and t.objective in visible]
+
+        def handle(comments_changed: bool) -> None:
+            if comments_changed:
+                self.reload_tasks(keep_selection=True)
+
+        self.push_screen(WipScreen(doing, self.tasks_dir, on_done=self.mark_task_done), handle)
 
     def action_delete_task(self) -> None:
         task = self.active_lane.get_selected_task()

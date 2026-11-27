@@ -4,7 +4,6 @@ from datetime import date
 
 from rich.markup import escape
 from textual.app import ComposeResult
-from textual.color import Color
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Static
@@ -16,16 +15,22 @@ from .column import Column
 
 STATUS_ORDER = [Status.BACKLOG, Status.DOING, Status.DONE]
 
-# Degradado verde -> rojo según qué tan "fresco" está el carril (ver lane_freshness).
-_FRESH_GREEN = (80, 250, 123)  # #50fa7b
-_STALE_RED = (255, 85, 85)  # #ff5555
+# Frescura del carril (ver lane_freshness) como medidor de bloques junto al
+# nombre: lleno = verde (recién se terminó algo), vacío = rojo (lleva todo
+# su ritmo sin terminar nada). Sin colores, así se lee en blanco y negro.
+METER_WIDTH = 8
 
 
-def _gradient_color(ratio: float) -> str:
-    r = round(_FRESH_GREEN[0] + (_STALE_RED[0] - _FRESH_GREEN[0]) * ratio)
-    g = round(_FRESH_GREEN[1] + (_STALE_RED[1] - _FRESH_GREEN[1]) * ratio)
-    b = round(_FRESH_GREEN[2] + (_STALE_RED[2] - _FRESH_GREEN[2]) * ratio)
-    return f"#{r:02x}{g:02x}{b:02x}"
+def freshness_meter(ratio: float) -> str:
+    ratio = max(0.0, min(1.0, ratio))
+    filled = round((1.0 - ratio) * METER_WIDTH)
+    if ratio < 0.34:
+        word = "fresco"
+    elif ratio < 0.67:
+        word = "tibio"
+    else:
+        word = "frío"
+    return f"▕{'█' * filled}{'░' * (METER_WIDTH - filled)}▏ {word}"
 
 
 class Lane(Vertical):
@@ -63,7 +68,7 @@ class Lane(Vertical):
         self.active_column_index = 0
         self.tasks: list[Task] = []
         self._columns: list[Column] = []
-        self._title: Static | None = None
+        self._cells: list[Static] = []
         self._body: Horizontal | None = None
         self._dirty = True
         self.add_class("objective-lane")
@@ -71,17 +76,23 @@ class Lane(Vertical):
             self.add_class("paused-lane")
 
     def compose(self) -> ComposeResult:
-        with Horizontal(classes="lane-header"):
-            self._title = Static(self._header_text(), classes="lane-title")
-            yield self._title
+        # Las dos filas de cabecera usan las mismas tres celdas que las
+        # columnas, para que las líneas verticales nunca pisen texto.
+        self._cells = [Static("", classes=f"lane-cell cell-{s.value}") for s in STATUS_ORDER]
+        yield Horizontal(*self._cells, classes="lane-row lane-header")
         description = oneline(self.description) if self.description else "(sin descripción)"
-        yield Static(f"   {description}", classes="lane-description")
+        yield Horizontal(
+            Static(escape(description), classes="lane-cell lane-description cell-backlog"),
+            Static("", classes="lane-cell cell-doing"),
+            Static("", classes="lane-cell cell-done"),
+            classes="lane-row",
+        )
         self._columns = [Column(status, lane_key=self.lane_key) for status in STATUS_ORDER]
         self._body = Horizontal(*self._columns, classes="lane-body")
         self._body.display = False
         yield self._body
 
-    def _header_text(self) -> str:
+    def _header_cells(self) -> tuple[str, str, str]:
         backlog = sum(1 for t in self.tasks if t.status == Status.BACKLOG)
         doing = sum(1 for t in self.tasks if t.status == Status.DOING)
         done = sum(1 for t in self.tasks if t.status == Status.DONE)
@@ -89,27 +100,25 @@ class Lane(Vertical):
         if self.wip_limit is not None:
             doing_text = f"Prog {doing}/{self.wip_limit}"
             if doing >= self.wip_limit:
-                doing_text = f"[bold #ff5f56]{doing_text}[/]"
+                doing_text = f"[bold $error]{doing_text}[/]"
         else:
             doing_text = f"Prog {doing}"
 
-        badge_text = "   ·   [dim]⏸ apagado[/dim]" if self.is_paused else ""
-
-        return (
-            f"\U0001f3af [bold]{escape(self.title_text)}[/bold]   ·   P{self.priority}   ·   "
-            f"Pend {backlog}   ·   {doing_text}   ·   Hecho {done}{badge_text}"
-        )
-
-    def _refresh_border(self) -> None:
-        weight = "heavy" if self.is_active else "solid"
         if self.is_paused:
-            color = "#8a8a8a" if self.is_active else "#4a4a4a"
-            self.styles.border_top = ("solid", color)
-            return
-        ratio = lane_freshness(self.tasks, self.priority or 0, self.created_at)
-        color = _gradient_color(ratio)
-        self.styles.border_top = (weight, color)
-        self.styles.background = Color.parse(color).with_alpha(0.08)
+            meter = "(apagado)"
+        else:
+            meter = freshness_meter(lane_freshness(self.tasks, self.priority or 0, self.created_at))
+
+        first = (
+            f"[bold]{escape(self.title_text)}[/bold]  {meter}  ·  "
+            f"P{self.priority}  ·  Pend {backlog}"
+        )
+        return first, doing_text, f"Hecho {done}"
+
+    def _refresh_header(self) -> None:
+        if self._cells:
+            for cell, text in zip(self._cells, self._header_cells()):
+                cell.update(text)
 
     @property
     def columns(self) -> list[Column]:
@@ -130,9 +139,7 @@ class Lane(Vertical):
         id_to_task = {t.id: t for t in tasks}
         for column in self._columns:
             column.set_tasks(by_status[column.status], id_to_task, settings)
-        if self._title is not None:
-            self._title.update(self._header_text())
-        self._refresh_border()
+        self._refresh_header()
         self._dirty = True
         if self.is_active:
             self._render_columns()
@@ -158,7 +165,6 @@ class Lane(Vertical):
                 self._refresh_active_column()
         else:
             self._refresh_active_column()
-        self._refresh_border()
 
     def focus_left(self) -> None:
         self.active_column_index = max(0, self.active_column_index - 1)
